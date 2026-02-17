@@ -18,6 +18,7 @@ import os
 API_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway"
 CONFIG_FILE = "config.json"
 INTERVALO_SYNC = 30
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1c2JueHN6emR0d2dpYmxpYmh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMzI4NTEsImV4cCI6MjA4NjkwODg1MX0.PTQQOeQEk3xVjF5Ry4BvltGRoJTMtPNxUODe5tTFw8g"
 BAUDRATE = 115200
 TIMEOUT_SERIAL = 3
 # ============================================================
@@ -70,7 +71,11 @@ def obter_api_key():
         resp = requests.post(
             API_URL,
             json={"modems": []},
-            headers={"Content-Type": "application/json", "x-api-key": api_key},
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "apikey": SUPABASE_ANON_KEY,
+            },
             timeout=10,
         )
         if resp.status_code == 200:
@@ -192,7 +197,11 @@ def sincronizar(api_key, modems_data):
         resp = requests.post(
             API_URL,
             json={"modems": modems_data},
-            headers={"Content-Type": "application/json", "x-api-key": api_key},
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "apikey": SUPABASE_ANON_KEY,
+            },
             timeout=15,
         )
         if resp.status_code == 200:
