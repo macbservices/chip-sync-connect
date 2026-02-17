@@ -234,10 +234,18 @@ const Dashboard = () => {
             </div>
             <h1 className="text-xl font-bold">CHIP SMS</h1>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/store")}>
+              Loja
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/admin/orders")}>
+              Vendas
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </Button>
+          </div>
         </div>
       </header>
 
