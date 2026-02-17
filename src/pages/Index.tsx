@@ -23,7 +23,10 @@ const Index = () => {
             </div>
             <span className="text-xl font-bold">CHIP SMS</span>
           </div>
-          <Button onClick={() => navigate("/auth")}>Entrar</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/store")}>Loja</Button>
+            <Button onClick={() => navigate("/auth")}>Entrar</Button>
+          </div>
         </div>
       </header>
 
@@ -38,9 +41,12 @@ const Index = () => {
               os números e modems em tempo real através do dashboard web.
             </p>
             <div className="flex justify-center gap-4">
-              <Button size="lg" onClick={() => navigate("/auth")}>
-                Começar agora
+              <Button size="lg" onClick={() => navigate("/store")}>
+                Comprar serviços
                 <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => navigate("/auth")}>
+                Painel Admin
               </Button>
             </div>
 

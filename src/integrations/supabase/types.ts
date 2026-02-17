@@ -141,6 +141,66 @@ export type Database = {
           },
         ]
       }
+      orders: {
+        Row: {
+          admin_notes: string | null
+          amount_cents: number
+          chip_id: string | null
+          created_at: string
+          customer_id: string
+          expires_at: string | null
+          id: string
+          phone_number: string | null
+          pix_proof_url: string | null
+          service_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount_cents?: number
+          chip_id?: string | null
+          created_at?: string
+          customer_id: string
+          expires_at?: string | null
+          id?: string
+          phone_number?: string | null
+          pix_proof_url?: string | null
+          service_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount_cents?: number
+          chip_id?: string | null
+          created_at?: string
+          customer_id?: string
+          expires_at?: string | null
+          id?: string
+          phone_number?: string | null
+          pix_proof_url?: string | null
+          service_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -160,6 +220,45 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          is_active: boolean
+          name: string
+          price_cents: number
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price_cents?: number
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price_cents?: number
+          type?: string
           updated_at?: string
           user_id?: string
         }
