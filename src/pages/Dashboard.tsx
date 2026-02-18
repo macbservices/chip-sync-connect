@@ -103,6 +103,7 @@ const Dashboard = () => {
   const checkAuth = async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) navigate("/auth");
+    // Dashboard is for collaborators - anyone logged in can access
   };
 
   const fetchLocations = async () => {
@@ -235,12 +236,6 @@ const Dashboard = () => {
             <h1 className="text-xl font-bold">CHIP SMS</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/store")}>
-              Loja
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/admin/orders")}>
-              Vendas
-            </Button>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               Sair

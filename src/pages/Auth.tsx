@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,31 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const redirectAfterLogin = async (userId: string) => {
+    // Check role and redirect accordingly
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    const roleList = (roles || []).map((r) => r.role);
+    const redirect = searchParams.get("redirect");
+
+    if (redirect) {
+      navigate(redirect);
+    } else if (roleList.includes("admin")) {
+      navigate("/admin");
+    } else if (roleList.includes("collaborator")) {
+      navigate("/dashboard");
+    } else if (roleList.includes("customer")) {
+      navigate("/store");
+    } else {
+      // No role yet — assign customer by default after signup
+      navigate("/store");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,11 +47,11 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/dashboard");
+        if (data.user) await redirectAfterLogin(data.user.id);
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -35,7 +60,18 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast.success("Conta criada! Verifique seu e-mail para confirmar.");
+
+        // Assign customer role on signup (if user was created immediately)
+        if (data.user && !data.user.email_confirmed_at) {
+          toast.success("Conta criada! Verifique seu e-mail para confirmar.");
+        } else if (data.user) {
+          // Auto-confirmed — assign role and redirect
+          await supabase.from("user_roles").insert({
+            user_id: data.user.id,
+            role: "customer",
+          });
+          navigate("/store");
+        }
       }
     } catch (error: any) {
       toast.error(error.message);
@@ -53,7 +89,7 @@ const Auth = () => {
           </div>
           <CardTitle className="text-2xl">CHIP SMS</CardTitle>
           <CardDescription>
-            {isLogin ? "Entre na sua conta" : "Crie sua conta"}
+            {isLogin ? "Entre na sua conta" : "Crie sua conta de cliente"}
           </CardDescription>
         </CardHeader>
         <CardContent>

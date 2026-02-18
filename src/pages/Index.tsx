@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Smartphone, MapPin, Wifi, ArrowRight } from "lucide-react";
+import { Smartphone } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -14,77 +14,25 @@ const Index = () => {
   }, [navigate]);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-card">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Smartphone className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">CHIP SMS</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/store")}>Loja</Button>
-            <Button onClick={() => navigate("/auth")}>Entrar</Button>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <div className="text-center space-y-6 px-4 max-w-sm">
+        <div className="flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
+            <Smartphone className="h-8 w-8 text-primary-foreground" />
           </div>
         </div>
-      </header>
-
-      <main className="flex flex-1 items-center">
-        <div className="container py-20">
-          <div className="mx-auto max-w-2xl text-center space-y-6">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              Gerencie seus chips GSM de qualquer lugar
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Conecte suas chipeiras GSM em múltiplas localizações e monitore todos
-              os números e modems em tempo real através do dashboard web.
-            </p>
-            <div className="flex justify-center gap-4">
-              <Button size="lg" onClick={() => navigate("/store")}>
-                Comprar serviços
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              <Button size="lg" variant="outline" onClick={() => navigate("/auth")}>
-                Painel Admin
-              </Button>
-            </div>
-
-            <div className="mt-16 grid gap-8 sm:grid-cols-3">
-              <div className="space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                  <MapPin className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="font-semibold">Multi-localização</h3>
-                <p className="text-sm text-muted-foreground">
-                  Instale o app em quantos locais quiser, todos conectados ao
-                  mesmo painel.
-                </p>
-              </div>
-              <div className="space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
-                  <Wifi className="h-6 w-6 text-success" />
-                </div>
-                <h3 className="font-semibold">Tempo real</h3>
-                <p className="text-sm text-muted-foreground">
-                  Veja o status dos modems e chips atualizando em tempo real no
-                  dashboard.
-                </p>
-              </div>
-              <div className="space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
-                  <Smartphone className="h-6 w-6 text-accent" />
-                </div>
-                <h3 className="font-semibold">Chips & SMS</h3>
-                <p className="text-sm text-muted-foreground">
-                  Identifique números, operadoras e monitore mensagens
-                  recebidas.
-                </p>
-              </div>
-            </div>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold">CHIP SMS</h1>
+          <p className="text-muted-foreground mt-2">
+            Verificação por SMS rápida e confiável
+          </p>
         </div>
-      </main>
+        <div className="flex flex-col gap-3">
+          <Button size="lg" className="w-full" onClick={() => navigate("/auth")}>
+            Entrar / Cadastrar
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
