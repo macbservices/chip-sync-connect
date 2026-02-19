@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import {
   Smartphone, Clock, Zap, ShoppingCart, LogOut, History,
-  Wallet, Plus, RefreshCw
+  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle
 } from "lucide-react";
 
 type Service = {
@@ -20,6 +20,7 @@ type Service = {
   price_cents: number;
   duration_minutes: number | null;
   is_active: boolean;
+  available_chips?: number;
 };
 
 type Order = {
@@ -27,6 +28,7 @@ type Order = {
   status: string;
   amount_cents: number;
   phone_number: string | null;
+  chip_id: string | null;
   created_at: string;
   service: { name: string; type: string } | null;
 };
@@ -40,7 +42,7 @@ type SmsCode = {
 
 const Store = () => {
   const navigate = useNavigate();
-  const { isCustomer, isAdmin, loading: roleLoading } = useRole();
+  const { isAdmin, loading: roleLoading } = useRole();
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [balance, setBalance] = useState(0);
@@ -53,6 +55,7 @@ const Store = () => {
   const [smsPopupOpen, setSmsPopupOpen] = useState(false);
   const [activeSmsOrder, setActiveSmsOrder] = useState<Order | null>(null);
   const [smsCodes, setSmsCodes] = useState<SmsCode[]>([]);
+  const [smsLoading, setSmsLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -68,10 +71,9 @@ const Store = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Realtime: listen for new SMS on active order chip
+  // Realtime SMS polling when popup is open
   useEffect(() => {
     if (!activeSmsOrder || !smsPopupOpen) return;
-    // We poll every 5s since we don't have direct chip_id from order easily
     const interval = setInterval(() => loadSmsCodes(activeSmsOrder), 5000);
     return () => clearInterval(interval);
   }, [activeSmsOrder, smsPopupOpen]);
@@ -79,7 +81,9 @@ const Store = () => {
   const fetchAll = async (userId: string) => {
     const [{ data: svcData }, { data: ordData }, { data: profileData }] = await Promise.all([
       supabase.from("services").select("*").eq("is_active", true).order("price_cents"),
-      supabase.from("orders").select("*, service:services(name, type)").order("created_at", { ascending: false }),
+      supabase.from("orders")
+        .select("id, status, amount_cents, phone_number, chip_id, created_at, service:services(name, type)")
+        .order("created_at", { ascending: false }),
       supabase.from("profiles").select("balance_cents").eq("user_id", userId).single(),
     ]);
     setServices(svcData || []);
@@ -89,28 +93,22 @@ const Store = () => {
   };
 
   const loadSmsCodes = async (order: Order) => {
-    // Fetch sms via chip linked to this order's chip_id
-    const { data: orderDetail } = await supabase
-      .from("orders")
-      .select("chip_id")
-      .eq("id", order.id)
-      .single();
-
-    if (!orderDetail?.chip_id) return;
-
+    if (!order.chip_id) return;
+    setSmsLoading(true);
     const { data: sms } = await supabase
       .from("sms_logs")
       .select("id, sender, message, received_at")
-      .eq("chip_id", orderDetail.chip_id)
+      .eq("chip_id", order.chip_id)
       .eq("direction", "inbound")
       .order("received_at", { ascending: false })
       .limit(20);
-
     setSmsCodes((sms as any) || []);
+    setSmsLoading(false);
   };
 
   const openSmsPopup = async (order: Order) => {
     setActiveSmsOrder(order);
+    setSmsCodes([]);
     setSmsPopupOpen(true);
     await loadSmsCodes(order);
   };
@@ -118,20 +116,40 @@ const Store = () => {
   const buyService = async (service: Service) => {
     if (!session) { navigate("/auth"); return; }
     if (balance < service.price_cents) {
-      toast.error("Saldo insuficiente. Faça uma recarga primeiro.");
+      toast.error("Saldo insuficiente. Recarregue sua conta via PIX.");
       return;
     }
+
     setBuying(service.id);
     try {
-      const { error } = await supabase.from("orders").insert({
-        customer_id: session.user.id,
-        service_id: service.id,
-        amount_cents: service.price_cents,
-        status: "pending_payment",
-      });
+      // The admin will manually assign a chip and approve the order
+      const { data: orderData, error } = await supabase
+        .from("orders")
+        .insert({
+          customer_id: session.user.id,
+          service_id: service.id,
+          amount_cents: service.price_cents,
+          status: "pending_payment",
+        })
+        .select()
+        .single();
+
       if (error) throw error;
-      toast.success("Pedido criado! Aguarde a atribuição do número pelo administrador.");
-      fetchAll(session.user.id);
+
+      // Deduct balance immediately on purchase
+      const { error: balErr } = await supabase
+        .from("profiles")
+        .update({ balance_cents: balance - service.price_cents })
+        .eq("user_id", session.user.id);
+
+      if (balErr) {
+        // Rollback: cancel order if balance deduction fails
+        await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderData.id);
+        throw balErr;
+      }
+
+      toast.success("Pedido criado! O número será atribuído em instantes.");
+      await fetchAll(session.user.id);
       setTab("history");
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar pedido");
@@ -145,7 +163,7 @@ const Store = () => {
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      pending_payment: { label: "Aguardando", variant: "outline" },
+      pending_payment: { label: "Aguardando número", variant: "outline" },
       paid: { label: "Pago", variant: "default" },
       active: { label: "Ativo", variant: "default" },
       completed: { label: "Concluído", variant: "secondary" },
@@ -170,7 +188,8 @@ const Store = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b bg-card sticky top-0 z-10">
+      {/* Header */}
+      <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
@@ -179,16 +198,12 @@ const Store = () => {
             <span className="text-xl font-bold">CHIP SMS</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Balance display */}
-            <div className="flex items-center gap-1 rounded-lg border bg-muted px-3 py-1.5 text-sm font-semibold">
+            {/* Balance */}
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted px-3 py-1.5 text-sm font-semibold">
               <Wallet className="h-4 w-4 text-primary" />
               {formatPrice(balance)}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/recharge")}
-            >
+            <Button variant="outline" size="sm" onClick={() => navigate("/recharge")}>
               <Plus className="mr-1 h-3 w-3" />
               Recarregar
             </Button>
@@ -198,14 +213,14 @@ const Store = () => {
               onClick={() => setTab("history")}
             >
               <History className="mr-1 h-4 w-4" />
-              Histórico
+              <span className="hidden sm:inline">Histórico</span>
             </Button>
             {isAdmin && (
               <Button variant="ghost" size="sm" onClick={() => navigate("/admin")}>
                 Admin
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
@@ -213,27 +228,43 @@ const Store = () => {
       </header>
 
       <main className="flex-1 container py-8">
+
+        {/* Balance card on mobile */}
+        <div className="sm:hidden mb-6">
+          <div className="flex items-center justify-between rounded-xl border bg-primary/5 px-4 py-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Saldo disponível</p>
+              <p className="text-xl font-bold text-primary">{formatPrice(balance)}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => navigate("/recharge")}>
+              <Plus className="h-3 w-3 mr-1" /> Recarregar
+            </Button>
+          </div>
+        </div>
+
+        {/* Store Tab */}
         {tab === "store" && (
           <>
             <div className="mx-auto max-w-3xl text-center mb-8">
-              <h1 className="text-3xl font-bold tracking-tight mb-2">Serviços de SMS</h1>
+              <h1 className="text-3xl font-bold tracking-tight mb-2">Serviços disponíveis</h1>
               <p className="text-muted-foreground">
-                Compre com seu saldo — verificação ou aluguel de número
+                Escolha um serviço e receba o código SMS em segundos
               </p>
             </div>
 
             {services.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <ShoppingCart className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                <p>Nenhum serviço disponível no momento.</p>
+                <ShoppingCart className="mx-auto h-12 w-12 mb-4 opacity-30" />
+                <p className="text-lg font-medium">Nenhum serviço disponível no momento.</p>
+                <p className="text-sm mt-1">Volte em breve.</p>
               </div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
                 {services.map((service) => (
-                  <Card key={service.id} className="flex flex-col">
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={service.type === "verification" ? "default" : "secondary"}>
+                  <Card key={service.id} className="flex flex-col hover:shadow-md transition-shadow border-border/60">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <Badge variant={service.type === "verification" ? "default" : "secondary"} className="text-xs">
                           {service.type === "verification" ? (
                             <><Zap className="mr-1 h-3 w-3" /> Verificação</>
                           ) : (
@@ -241,29 +272,38 @@ const Store = () => {
                           )}
                         </Badge>
                       </div>
-                      <CardTitle className="mt-2">{service.name}</CardTitle>
+                      <CardTitle className="mt-2 text-lg">{service.name}</CardTitle>
                       {service.description && (
-                        <CardDescription>{service.description}</CardDescription>
+                        <CardDescription className="text-sm">{service.description}</CardDescription>
                       )}
                     </CardHeader>
-                    <CardContent className="flex-1">
+                    <CardContent className="flex-1 pb-3">
                       {service.type === "rental" && service.duration_minutes && (
-                        <p className="text-sm text-muted-foreground">
-                          Duração: {service.duration_minutes >= 60
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          {service.duration_minutes >= 60
                             ? `${Math.floor(service.duration_minutes / 60)}h${service.duration_minutes % 60 > 0 ? ` ${service.duration_minutes % 60}min` : ""}`
                             : `${service.duration_minutes} min`}
                         </p>
                       )}
                     </CardContent>
-                    <CardFooter className="flex items-center justify-between">
-                      <span className="text-2xl font-bold text-primary">
+                    <CardFooter className="flex items-center justify-between pt-3 border-t">
+                      <span className="text-2xl font-extrabold text-primary">
                         {formatPrice(service.price_cents)}
                       </span>
                       <Button
                         onClick={() => buyService(service)}
-                        disabled={buying === service.id || balance < service.price_cents}
+                        disabled={buying === service.id}
+                        size="sm"
+                        className="shrink-0"
                       >
-                        {buying === service.id ? "Comprando..." : balance < service.price_cents ? "Saldo insuficiente" : "Comprar"}
+                        {buying === service.id ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : balance < service.price_cents ? (
+                          "Saldo insuficiente"
+                        ) : (
+                          <><ShoppingCart className="mr-1.5 h-4 w-4" /> Comprar</>
+                        )}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -273,10 +313,11 @@ const Store = () => {
           </>
         )}
 
+        {/* History Tab */}
         {tab === "history" && (
           <div className="max-w-4xl mx-auto space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">Histórico de Pedidos</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-bold">Meus Pedidos</h2>
               <Button variant="outline" size="sm" onClick={() => setTab("store")}>
                 Ver serviços
               </Button>
@@ -284,32 +325,56 @@ const Store = () => {
 
             {orders.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <History className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                <p>Nenhum pedido ainda.</p>
+                <History className="mx-auto h-12 w-12 mb-4 opacity-30" />
+                <p className="text-lg font-medium">Nenhum pedido ainda.</p>
+                <Button className="mt-4" onClick={() => setTab("store")}>
+                  Explorar serviços
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
                 {orders.map((order) => (
-                  <Card key={order.id}>
-                    <CardContent className="flex items-center justify-between p-4">
+                  <Card key={order.id} className="border-border/60">
+                    <CardContent className="flex items-center justify-between p-4 gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold truncate">{order.service?.name || "—"}</p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(order.created_at).toLocaleString("pt-BR")}
                         </p>
                         {order.phone_number && (
-                          <p className="text-sm font-mono text-primary mt-1">
-                            📱 {order.phone_number}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <Smartphone className="h-3.5 w-3.5 text-primary" />
+                            <p className="text-sm font-mono font-bold text-primary">
+                              {order.phone_number}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={() => {
+                                navigator.clipboard.writeText(order.phone_number!);
+                                toast.success("Número copiado!");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                        {order.status === "pending_payment" && !order.phone_number && (
+                          <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Aguardando atribuição de número...
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 ml-4">
+                      <div className="flex items-center gap-3 shrink-0">
                         <div className="text-right">
                           <p className="font-bold text-primary">{formatPrice(order.amount_cents)}</p>
-                          {getStatusBadge(order.status)}
+                          <div className="mt-0.5">{getStatusBadge(order.status)}</div>
                         </div>
-                        {(order.status === "active" || order.status === "paid") && order.phone_number && (
-                          <Button size="sm" onClick={() => openSmsPopup(order)}>
+                        {(order.status === "active" || order.status === "paid") && order.chip_id && (
+                          <Button size="sm" variant="outline" onClick={() => openSmsPopup(order)}>
+                            <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
                             Ver SMS
                           </Button>
                         )}
@@ -327,42 +392,66 @@ const Store = () => {
       <Dialog open={smsPopupOpen} onOpenChange={setSmsPopupOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>📱 SMS Recebidos</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              Mensagens SMS recebidas
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            {activeSmsOrder?.phone_number && (
-              <div className="rounded-lg bg-muted px-4 py-2 text-center">
-                <p className="text-xs text-muted-foreground">Número do chip</p>
-                <p className="font-mono font-bold text-primary text-lg">{activeSmsOrder.phone_number}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Envie o código de verificação para este número
-                </p>
-              </div>
-            )}
 
-            <div className="max-h-72 overflow-y-auto space-y-2 mt-2">
-              {smsCodes.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8 text-sm">
-                  Nenhuma mensagem recebida ainda.<br />
-                  Atualizando automaticamente a cada 5s...
-                </p>
-              ) : (
-                smsCodes.map((sms) => (
-                  <div key={sms.id} className="rounded-lg border bg-card p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        De: {sms.sender || "Desconhecido"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(sms.received_at).toLocaleTimeString("pt-BR")}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium">{sms.message}</p>
-                  </div>
-                ))
-              )}
+          {activeSmsOrder?.phone_number && (
+            <div className="rounded-xl border-2 border-primary/20 bg-primary/5 px-4 py-3 text-center space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Número do chip</p>
+              <div className="flex items-center justify-center gap-2">
+                <p className="font-mono font-bold text-primary text-xl">{activeSmsOrder.phone_number}</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    navigator.clipboard.writeText(activeSmsOrder.phone_number!);
+                    toast.success("Número copiado!");
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Envie o código de verificação para este número
+              </p>
             </div>
+          )}
+
+          <div className="max-h-72 overflow-y-auto space-y-2">
+            {smsLoading ? (
+              <div className="flex justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : smsCodes.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                <MessageSquare className="mx-auto h-8 w-8 mb-2 opacity-30" />
+                <p className="text-sm">Nenhuma mensagem recebida ainda.</p>
+                <p className="text-xs mt-1 text-muted-foreground">Atualizando automaticamente a cada 5s...</p>
+              </div>
+            ) : (
+              smsCodes.map((sms) => (
+                <div key={sms.id} className="rounded-lg border bg-card p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      De: {sms.sender || "Desconhecido"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(sms.received_at).toLocaleTimeString("pt-BR")}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium bg-muted rounded px-2 py-1 font-mono">{sms.message}</p>
+                </div>
+              ))
+            )}
           </div>
+
+          <p className="text-xs text-center text-muted-foreground">
+            Atualizando automaticamente a cada 5 segundos
+          </p>
         </DialogContent>
       </Dialog>
     </div>
