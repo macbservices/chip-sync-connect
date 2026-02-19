@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { RouteGuard } from "@/components/RouteGuard";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -27,20 +28,51 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/sem-acesso" element={<NoAccess />} />
 
-          {/* Collaborator: chipeira management */}
-          <Route path="/dashboard" element={<Dashboard />} />
+          {/* Collaborator only: chipeira management + sales report */}
+          <Route
+            path="/dashboard"
+            element={
+              <RouteGuard allowedRoles={["collaborator", "admin"]}>
+                <Dashboard />
+              </RouteGuard>
+            }
+          />
 
-          {/* Customer: store & orders */}
-          <Route path="/store" element={<Store />} />
-          <Route path="/recharge" element={<Recharge />} />
-          <Route path="/my-orders" element={<MyOrders />} />
+          {/* Customer only: store & recharge */}
+          <Route
+            path="/store"
+            element={
+              <RouteGuard allowedRoles={["customer", "admin"]}>
+                <Store />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/recharge"
+            element={
+              <RouteGuard allowedRoles={["customer", "admin"]}>
+                <Recharge />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/my-orders"
+            element={
+              <RouteGuard allowedRoles={["customer", "admin"]}>
+                <MyOrders />
+              </RouteGuard>
+            }
+          />
 
           {/* Admin only */}
-          <Route path="/admin" element={<Admin />} />
-
-          {/* Legacy redirects (kept for compatibility) */}
-          <Route path="/admin/orders" element={<Admin />} />
-          <Route path="/order/:serviceId" element={<Store />} />
+          <Route
+            path="/admin"
+            element={
+              <RouteGuard allowedRoles={["admin"]}>
+                <Admin />
+              </RouteGuard>
+            }
+          />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

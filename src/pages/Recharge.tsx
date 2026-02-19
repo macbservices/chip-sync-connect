@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Smartphone, ArrowLeft, QrCode, Copy, Upload } from "lucide-react";
+import { Smartphone, ArrowLeft, QrCode, Copy, Upload, CheckCircle2 } from "lucide-react";
 
-const PIX_KEY = "contato@chipsms.com";
+const PIX_KEY = "2eb9e41e-13e9-4ad9-95c2-634008562008";
 
 const Recharge = () => {
   const navigate = useNavigate();
@@ -61,7 +61,6 @@ const Recharge = () => {
 
       if (error) throw error;
       setDone(true);
-      toast.success("Solicitação enviada! O administrador irá confirmar em breve.");
     } catch (err: any) {
       toast.error(err.message || "Erro ao enviar solicitação");
     } finally {
@@ -71,15 +70,15 @@ const Recharge = () => {
 
   if (done) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="text-5xl">✅</div>
-            <h2 className="text-xl font-bold">Solicitação enviada!</h2>
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full shadow-lg">
+          <CardContent className="p-10 text-center space-y-5">
+            <CheckCircle2 className="mx-auto h-16 w-16 text-accent" />
+            <h2 className="text-2xl font-bold">Solicitação enviada!</h2>
             <p className="text-muted-foreground">
-              Seu saldo será creditado após confirmação do pagamento pelo administrador.
+              Seu saldo será creditado após confirmação do pagamento pelo administrador. Isso pode levar alguns minutos.
             </p>
-            <Button className="w-full" onClick={() => navigate("/store")}>
+            <Button className="w-full" size="lg" onClick={() => navigate("/store")}>
               Voltar à loja
             </Button>
           </CardContent>
@@ -89,8 +88,8 @@ const Recharge = () => {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-card">
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="border-b bg-card sticky top-0 z-10">
         <div className="container flex h-16 items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/store")}>
             <ArrowLeft className="h-5 w-5" />
@@ -106,33 +105,40 @@ const Recharge = () => {
 
       <main className="flex-1 container py-8">
         <div className="mx-auto max-w-md space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Saldo atual</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">{formatPrice(balance)}</p>
+          {/* Current Balance */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Saldo atual</p>
+                <p className="text-3xl font-bold text-primary mt-1">{formatPrice(balance)}</p>
+              </div>
+              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Smartphone className="h-7 w-7 text-primary" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
+          {/* PIX Payment Card */}
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <QrCode className="h-5 w-5" />
+                <QrCode className="h-5 w-5 text-primary" />
                 Pagamento via PIX
               </CardTitle>
               <CardDescription>
-                Envie o PIX para a chave abaixo e depois envie o comprovante
+                Envie o PIX para a chave abaixo e anexe o comprovante
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="rounded-lg border bg-muted/50 p-4 text-center space-y-2">
-                <p className="text-sm text-muted-foreground">Chave PIX</p>
+              {/* PIX Key */}
+              <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-5 text-center space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chave PIX (Aleatória)</p>
                 <div className="flex items-center justify-center gap-2">
-                  <code className="text-lg font-mono font-semibold">{PIX_KEY}</code>
+                  <code className="text-sm font-mono font-semibold text-foreground break-all">{PIX_KEY}</code>
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="shrink-0 h-8 w-8"
                     onClick={() => {
                       navigator.clipboard.writeText(PIX_KEY);
                       toast.success("Chave PIX copiada!");
@@ -143,8 +149,9 @@ const Recharge = () => {
                 </div>
               </div>
 
+              {/* Amount */}
               <div className="space-y-2">
-                <Label htmlFor="amount">Valor da recarga (R$)</Label>
+                <Label htmlFor="amount" className="font-medium">Valor da recarga (R$)</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -153,16 +160,20 @@ const Recharge = () => {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="Ex: 50"
+                  className="h-11 text-lg"
                 />
+                <p className="text-xs text-muted-foreground">Valor mínimo: R$ 5,00</p>
               </div>
 
+              {/* Proof */}
               <div className="space-y-2">
-                <Label htmlFor="proof">Comprovante do PIX</Label>
+                <Label htmlFor="proof" className="font-medium">Comprovante do PIX <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <Input
                   id="proof"
                   type="file"
                   accept="image/*,.pdf"
                   onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                  className="cursor-pointer"
                 />
               </div>
 
@@ -176,6 +187,10 @@ const Recharge = () => {
                   <><Upload className="mr-2 h-4 w-4" />Solicitar Recarga</>
                 )}
               </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Após o envio, o administrador confirmará o pagamento e seu saldo será creditado automaticamente.
+              </p>
             </CardContent>
           </Card>
         </div>
