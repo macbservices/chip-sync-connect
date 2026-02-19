@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      chip_activations: {
+        Row: {
+          activation_count: number
+          chip_id: string
+          id: string
+          is_exhausted: boolean
+          max_activations: number
+          service_type: string
+          updated_at: string
+        }
+        Insert: {
+          activation_count?: number
+          chip_id: string
+          id?: string
+          is_exhausted?: boolean
+          max_activations?: number
+          service_type: string
+          updated_at?: string
+        }
+        Update: {
+          activation_count?: number
+          chip_id?: string
+          id?: string
+          is_exhausted?: boolean
+          max_activations?: number
+          service_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chip_activations_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chips: {
         Row: {
           created_at: string
@@ -361,7 +399,28 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      weekly_sales_report: {
+        Row: {
+          collaborator_id: string | null
+          commission_cents: number | null
+          location_name: string | null
+          service_id: string | null
+          service_name: string | null
+          service_type: string | null
+          total_orders: number | null
+          total_revenue_cents: number | null
+          week_start: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
