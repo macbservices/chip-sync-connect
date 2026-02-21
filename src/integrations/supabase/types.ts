@@ -234,6 +234,13 @@ export type Database = {
             foreignKeyName: "orders_service_id_fkey"
             columns: ["service_id"]
             isOneToOne: false
+            referencedRelation: "public_services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
             referencedRelation: "services"
             referencedColumns: ["id"]
           },
@@ -399,6 +406,36 @@ export type Database = {
       }
     }
     Views: {
+      public_services: {
+        Row: {
+          description: string | null
+          duration_minutes: number | null
+          id: string | null
+          is_active: boolean | null
+          name: string | null
+          price_cents: number | null
+          type: string | null
+        }
+        Insert: {
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+          price_cents?: number | null
+          type?: string | null
+        }
+        Update: {
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+          price_cents?: number | null
+          type?: string | null
+        }
+        Relationships: []
+      }
       weekly_sales_report: {
         Row: {
           collaborator_id: string | null
@@ -416,6 +453,13 @@ export type Database = {
             foreignKeyName: "orders_service_id_fkey"
             columns: ["service_id"]
             isOneToOne: false
+            referencedRelation: "public_services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
             referencedRelation: "services"
             referencedColumns: ["id"]
           },
@@ -423,6 +467,8 @@ export type Database = {
       }
     }
     Functions: {
+      approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
+      cancel_order_refund: { Args: { _order_id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -430,6 +476,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      purchase_service: { Args: { _service_id: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "collaborator" | "customer"

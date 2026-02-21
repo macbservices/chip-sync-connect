@@ -80,7 +80,7 @@ const Store = () => {
 
   const fetchAll = async (userId: string) => {
     const [{ data: svcData }, { data: ordData }, { data: profileData }] = await Promise.all([
-      supabase.from("services").select("*").eq("is_active", true).order("price_cents"),
+      supabase.from("public_services").select("*").order("price_cents"),
       supabase.from("orders")
         .select("id, status, amount_cents, phone_number, chip_id, created_at, service:services(name, type)")
         .order("created_at", { ascending: false }),
@@ -122,31 +122,8 @@ const Store = () => {
 
     setBuying(service.id);
     try {
-      // The admin will manually assign a chip and approve the order
-      const { data: orderData, error } = await supabase
-        .from("orders")
-        .insert({
-          customer_id: session.user.id,
-          service_id: service.id,
-          amount_cents: service.price_cents,
-          status: "pending_payment",
-        })
-        .select()
-        .single();
-
+      const { error } = await supabase.rpc("purchase_service", { _service_id: service.id });
       if (error) throw error;
-
-      // Deduct balance immediately on purchase
-      const { error: balErr } = await supabase
-        .from("profiles")
-        .update({ balance_cents: balance - service.price_cents })
-        .eq("user_id", session.user.id);
-
-      if (balErr) {
-        // Rollback: cancel order if balance deduction fails
-        await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderData.id);
-        throw balErr;
-      }
 
       toast.success("Pedido criado! O número será atribuído em instantes.");
       await fetchAll(session.user.id);
