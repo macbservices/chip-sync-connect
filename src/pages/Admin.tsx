@@ -193,18 +193,8 @@ const Admin = () => {
   };
 
   const cancelOrder = async (order: Order) => {
-    // Refund balance to customer
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("balance_cents")
-      .eq("user_id", order.customer_id)
-      .single();
-
-    await supabase.from("profiles").update({
-      balance_cents: (profileData?.balance_cents ?? 0) + order.amount_cents
-    }).eq("user_id", order.customer_id);
-
-    await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+    const { error } = await supabase.rpc("cancel_order_refund", { _order_id: order.id });
+    if (error) { toast.error("Erro ao cancelar pedido"); return; }
     toast.success("Pedido cancelado e valor estornado ao cliente");
     fetchAll();
   };
@@ -216,26 +206,8 @@ const Admin = () => {
   };
 
   const approveRecharge = async (r: RechargeRequest) => {
-    const { error: rechErr } = await supabase
-      .from("recharge_requests")
-      .update({ status: "approved" })
-      .eq("id", r.id);
-
-    if (rechErr) { toast.error("Erro ao aprovar recarga"); return; }
-
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("balance_cents")
-      .eq("user_id", r.user_id)
-      .single();
-
-    const currentBalance = profileData?.balance_cents ?? 0;
-    const { error: balErr } = await supabase
-      .from("profiles")
-      .update({ balance_cents: currentBalance + r.amount_cents })
-      .eq("user_id", r.user_id);
-
-    if (balErr) { toast.error("Erro ao creditar saldo"); return; }
+    const { error } = await supabase.rpc("approve_recharge", { _recharge_id: r.id });
+    if (error) { toast.error("Erro ao aprovar recarga"); return; }
     toast.success("Recarga aprovada e saldo creditado!");
     fetchAll();
   };
