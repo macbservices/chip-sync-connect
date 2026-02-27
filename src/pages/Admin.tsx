@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users
 } from "lucide-react";
 
 type Service = {
@@ -57,10 +57,19 @@ type Chip = {
   status: string;
 };
 
+type UserEntry = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  balance_cents: number;
+  roles: string[];
+  created_at: string;
+};
+
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users">("orders");
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -82,6 +91,15 @@ const Admin = () => {
   const [orderChipId, setOrderChipId] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+
+  // User management
+  const [users, setUsers] = useState<UserEntry[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserRole, setNewUserRole] = useState("customer");
 
   useEffect(() => {
     if (roleLoading) return;
@@ -106,6 +124,20 @@ const Admin = () => {
     setChips((chipData as any) || []);
     setLoading(false);
   };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    const { data, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "list" },
+    });
+    if (error) { toast.error("Erro ao carregar usuários"); setUsersLoading(false); return; }
+    setUsers(data || []);
+    setUsersLoading(false);
+  };
+
+  useEffect(() => {
+    if (tab === "users" && users.length === 0) fetchUsers();
+  }, [tab]);
 
   const openServiceDialog = (svc?: Service) => {
     if (svc) {
@@ -281,6 +313,10 @@ const Admin = () => {
             <Button variant={tab === "services" ? "default" : "ghost"} size="sm" onClick={() => setTab("services")}>
               <DollarSign className="mr-1.5 h-4 w-4" />
               <span className="hidden sm:inline">Serviços</span>
+            </Button>
+            <Button variant={tab === "users" ? "default" : "ghost"} size="sm" onClick={() => setTab("users")}>
+              <Users className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Usuários</span>
             </Button>
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" />
@@ -488,6 +524,104 @@ const Admin = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* ====== USERS TAB ====== */}
+        {tab === "users" && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Gerenciar Usuários</CardTitle>
+                <CardDescription>Crie, altere roles ou remova usuários do sistema</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={fetchUsers} disabled={usersLoading}>
+                  <RefreshCw className={`mr-1 h-4 w-4 ${usersLoading ? "animate-spin" : ""}`} />
+                  Atualizar
+                </Button>
+                <Button size="sm" onClick={() => {
+                  setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("customer");
+                  setUserDialogOpen(true);
+                }}>
+                  <Plus className="mr-2 h-4 w-4" /> Novo Usuário
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {usersLoading ? (
+                <div className="flex justify-center py-12">
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : users.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">Nenhum usuário encontrado.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Saldo</TableHead>
+                      <TableHead>Cadastro</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
+                        <TableCell className="text-sm">{u.email}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={u.roles[0] || "customer"}
+                            onValueChange={async (newRole) => {
+                              const { error } = await supabase.functions.invoke("manage-users", {
+                                body: { action: "update_role", user_id: u.id, role: newRole },
+                              });
+                              if (error) { toast.error("Erro ao alterar role"); return; }
+                              toast.success("Role atualizada!");
+                              fetchUsers();
+                            }}
+                          >
+                            <SelectTrigger className="w-[130px] h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="collaborator">Colaborador</SelectItem>
+                              <SelectItem value="customer">Cliente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="font-semibold">{formatPrice(u.balance_cents)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(u.created_at).toLocaleDateString("pt-BR")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Remover usuário"
+                            onClick={async () => {
+                              if (!confirm(`Tem certeza que deseja remover ${u.email}?`)) return;
+                              const { error } = await supabase.functions.invoke("manage-users", {
+                                body: { action: "delete", user_id: u.id },
+                              });
+                              if (error) { toast.error("Erro ao remover usuário"); return; }
+                              toast.success("Usuário removido!");
+                              fetchUsers();
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
 
       {/* Service Dialog */}
@@ -592,6 +726,70 @@ const Admin = () => {
               <Button variant="outline" className="flex-1" onClick={() => setOrderDialogOpen(false)}>Cancelar</Button>
               <Button onClick={approveOrder} className="flex-1">
                 <Check className="mr-2 h-4 w-4" /> Ativar Pedido
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Novo Usuário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome completo</Label>
+              <Input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nome do usuário" />
+            </div>
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="email@exemplo.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Senha *</Label>
+              <Input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={newUserRole} onValueChange={setNewUserRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="collaborator">Colaborador</SelectItem>
+                  <SelectItem value="customer">Cliente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setUserDialogOpen(false)}>Cancelar</Button>
+              <Button
+                className="flex-1"
+                onClick={async () => {
+                  if (!newUserEmail || !newUserPassword || newUserPassword.length < 6) {
+                    toast.error("Preencha email e senha (min 6 caracteres)");
+                    return;
+                  }
+                  const { data, error } = await supabase.functions.invoke("manage-users", {
+                    body: {
+                      action: "create",
+                      email: newUserEmail,
+                      password: newUserPassword,
+                      full_name: newUserName,
+                      role: newUserRole,
+                    },
+                  });
+                  if (error || data?.error) {
+                    toast.error(data?.error || "Erro ao criar usuário");
+                    return;
+                  }
+                  toast.success("Usuário criado com sucesso!");
+                  setUserDialogOpen(false);
+                  fetchUsers();
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Criar Usuário
               </Button>
             </div>
           </div>
