@@ -20,16 +20,16 @@ export const RouteGuard = ({ allowedRoles, redirectTo = "/auth", children }: Rou
 
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) {
-        navigate(redirectTo);
+        navigate(redirectTo, { replace: true });
         return;
       }
+
       const hasAccess = allowedRoles.some((r) => roles.includes(r));
-      if (!hasAccess && roles.length > 0) {
-        // Redirect to appropriate page based on role
-        navigate("/sem-acesso");
+      if (!hasAccess) {
+        navigate("/sem-acesso", { replace: true });
       }
     });
-  }, [loading, roles]);
+  }, [loading, roles, allowedRoles, navigate, redirectTo]);
 
   if (loading) {
     return (
@@ -40,7 +40,13 @@ export const RouteGuard = ({ allowedRoles, redirectTo = "/auth", children }: Rou
   }
 
   const hasAccess = allowedRoles.some((r) => roles.includes(r));
-  if (!hasAccess) return null;
+  if (!hasAccess) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return <>{children}</>;
 };
