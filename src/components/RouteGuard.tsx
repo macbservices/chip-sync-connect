@@ -25,7 +25,7 @@ export const RouteGuard = ({ allowedRoles, redirectTo = "/auth", children }: Rou
       }
 
       const hasAccess = allowedRoles.some((r) => roles.includes(r));
-      if (!hasAccess) {
+      if (!hasAccess && roles.length > 0) {
         navigate("/sem-acesso", { replace: true });
       }
     });
