@@ -467,7 +467,12 @@ export type Database = {
       }
     }
     Functions: {
+      admin_cancel_order_return_chip: {
+        Args: { _order_id: string }
+        Returns: undefined
+      }
       approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
+      auto_cancel_stale_orders: { Args: never; Returns: number }
       cancel_order_refund: { Args: { _order_id: string }; Returns: undefined }
       has_role: {
         Args: {
