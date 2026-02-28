@@ -140,8 +140,44 @@ def descobrir_portas_gsm():
 
 def coletar_dados_modem(porta_nome):
     print(f"\n📡 Lendo modem em {porta_nome}...")
+
+    # Evita tentar abrir porta que sumiu entre a varredura e a leitura
+    portas_atuais = set(descobrir_portas_gsm())
+    if porta_nome not in portas_atuais:
+        print(f"  [AVISO] Porta {porta_nome} não está mais disponível")
+        return None
+
+    ser = None
     try:
-        ser = serial.Serial(porta_nome, BAUDRATE, timeout=TIMEOUT_SERIAL)
+        # Uma tentativa de reabertura para casos de reconexão rápida USB
+        for tentativa in range(2):
+            try:
+                ser = serial.Serial(porta_nome, BAUDRATE, timeout=TIMEOUT_SERIAL)
+                break
+            except serial.SerialException as e:
+                erro = str(e).lower()
+                porta_indisponivel = (
+                    "could not open port" in erro
+                    or "filenotfounderror" in erro
+                    or "acesso negado" in erro
+                    or "permissionerror" in erro
+                )
+
+                if porta_indisponivel and tentativa == 0:
+                    time.sleep(0.5)
+                    continue
+
+                if porta_indisponivel:
+                    print(f"  [AVISO] Porta {porta_nome} indisponível/ocupada")
+                    return None
+
+                print(f"  [ERRO] {porta_nome}: {e}")
+                return None
+
+        if not ser:
+            print(f"  [AVISO] Porta {porta_nome} indisponível")
+            return None
+
         time.sleep(1)
 
         resp = enviar_at(ser, "AT")
@@ -184,11 +220,17 @@ def coletar_dados_modem(porta_nome):
         return modem_data
 
     except serial.SerialException as e:
-        print(f"  [ERRO] {porta_nome}: {e}")
+        print(f"  [AVISO] {porta_nome}: indisponível/ocupada ({e})")
         return None
     except Exception as e:
         print(f"  [ERRO] {porta_nome}: {e}")
         return None
+    finally:
+        try:
+            if ser and ser.is_open:
+                ser.close()
+        except Exception:
+            pass
 
 
 def sincronizar(api_key, modems_data):
