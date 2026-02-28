@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp
 } from "lucide-react";
 
 type Service = {
@@ -69,7 +69,7 @@ type UserEntry = {
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report">("orders");
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -110,6 +110,21 @@ const Admin = () => {
   const [resetPwDialogOpen, setResetPwDialogOpen] = useState(false);
   const [resetPwUser, setResetPwUser] = useState<UserEntry | null>(null);
   const [resetPwValue, setResetPwValue] = useState("");
+
+  // Sales report
+  type SalesReportEntry = {
+    collaborator_id: string;
+    collaborator_name: string;
+    collaborator_email: string;
+    location_name: string;
+    service_name: string;
+    service_type: string;
+    total_orders: number;
+    total_revenue_cents: number;
+    commission_cents: number;
+  };
+  const [salesReport, setSalesReport] = useState<SalesReportEntry[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     if (roleLoading) return;
@@ -154,7 +169,93 @@ const Admin = () => {
 
   useEffect(() => {
     if (tab === "users" && users.length === 0) fetchUsers();
+    if (tab === "report" && salesReport.length === 0) fetchSalesReport();
   }, [tab]);
+
+  const fetchSalesReport = async () => {
+    setReportLoading(true);
+    try {
+      // Get all collaborators
+      const { data: usersData } = await supabase.functions.invoke("manage-users", {
+        body: { action: "list" },
+      });
+      const collaborators = (usersData || []).filter((u: any) => u.roles?.includes("collaborator"));
+
+      if (collaborators.length === 0) {
+        setSalesReport([]);
+        setReportLoading(false);
+        return;
+      }
+
+      const collabIds = collaborators.map((c: any) => c.id);
+
+      // Get locations for all collaborators
+      const { data: locData } = await supabase
+        .from("locations")
+        .select("id, name, user_id")
+        .in("user_id", collabIds);
+
+      if (!locData || locData.length === 0) {
+        setSalesReport([]);
+        setReportLoading(false);
+        return;
+      }
+
+      const locIds = locData.map((l) => l.id);
+
+      // Get modems → chips → orders chain
+      const { data: modemData } = await supabase.from("modems").select("id, location_id").in("location_id", locIds);
+      if (!modemData || modemData.length === 0) { setSalesReport([]); setReportLoading(false); return; }
+
+      const modemIds = modemData.map((m) => m.id);
+      const { data: chipData } = await supabase.from("chips").select("id, modem_id").in("modem_id", modemIds);
+      if (!chipData || chipData.length === 0) { setSalesReport([]); setReportLoading(false); return; }
+
+      const chipIds = chipData.map((c) => c.id);
+
+      const { data: ordersData } = await supabase
+        .from("orders")
+        .select("id, chip_id, service_id, amount_cents, status, created_at, service:services(name, type)")
+        .in("chip_id", chipIds)
+        .in("status", ["active", "completed"])
+        .order("created_at", { ascending: false });
+
+      // Group by collaborator + location + service
+      const groupMap = new Map<string, SalesReportEntry>();
+      for (const order of (ordersData || []) as any[]) {
+        const chip = chipData.find((c) => c.id === order.chip_id);
+        const modem = chip ? modemData.find((m) => m.id === chip.modem_id) : null;
+        const loc = modem ? locData.find((l) => l.id === modem.location_id) : null;
+        const collab = loc ? collaborators.find((c: any) => c.id === loc.user_id) : null;
+        if (!collab || !loc) continue;
+
+        const key = `${collab.id}-${loc.id}-${order.service_id}`;
+        if (groupMap.has(key)) {
+          const entry = groupMap.get(key)!;
+          entry.total_orders += 1;
+          entry.total_revenue_cents += order.amount_cents;
+          entry.commission_cents = Math.round(entry.total_revenue_cents * 0.4);
+        } else {
+          groupMap.set(key, {
+            collaborator_id: collab.id,
+            collaborator_name: collab.full_name || collab.email,
+            collaborator_email: collab.email,
+            location_name: loc.name,
+            service_name: order.service?.name || "—",
+            service_type: order.service?.type || "—",
+            total_orders: 1,
+            total_revenue_cents: order.amount_cents,
+            commission_cents: Math.round(order.amount_cents * 0.4),
+          });
+        }
+      }
+
+      setSalesReport(Array.from(groupMap.values()).sort((a, b) => b.total_revenue_cents - a.total_revenue_cents));
+    } catch (err) {
+      toast.error("Erro ao carregar relatório");
+    }
+    setReportLoading(false);
+  };
 
   const openServiceDialog = (svc?: Service) => {
     if (svc) {
@@ -360,6 +461,10 @@ const Admin = () => {
             <Button variant={tab === "users" ? "default" : "ghost"} size="sm" onClick={() => setTab("users")}>
               <Users className="mr-1.5 h-4 w-4" />
               <span className="hidden sm:inline">Usuários</span>
+            </Button>
+            <Button variant={tab === "report" ? "default" : "ghost"} size="sm" onClick={() => setTab("report")}>
+              <BarChart3 className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Relatório</span>
             </Button>
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" />
@@ -697,6 +802,92 @@ const Admin = () => {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ====== REPORT TAB ====== */}
+        {tab === "report" && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Relatório de Vendas por Colaborador
+                </CardTitle>
+                <CardDescription>Visão geral das vendas realizadas através das chipeiras dos colaboradores</CardDescription>
+              </div>
+              <Button size="sm" variant="outline" onClick={fetchSalesReport} disabled={reportLoading}>
+                <RefreshCw className={`mr-1 h-4 w-4 ${reportLoading ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {reportLoading ? (
+                <div className="flex justify-center py-12">
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : salesReport.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">Nenhuma venda encontrada.</p>
+              ) : (
+                <>
+                  {/* Summary cards */}
+                  <div className="grid gap-4 sm:grid-cols-3 mb-6">
+                    <div className="rounded-lg border bg-muted/50 p-4">
+                      <p className="text-sm text-muted-foreground">Total de Pedidos</p>
+                      <p className="text-2xl font-bold">{salesReport.reduce((a, s) => a + s.total_orders, 0)}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/50 p-4">
+                      <p className="text-sm text-muted-foreground">Receita Total</p>
+                      <p className="text-2xl font-bold text-primary">
+                        {formatPrice(salesReport.reduce((a, s) => a + s.total_revenue_cents, 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/50 p-4">
+                      <p className="text-sm text-muted-foreground">Comissões (40%)</p>
+                      <p className="text-2xl font-bold">
+                        {formatPrice(salesReport.reduce((a, s) => a + s.commission_cents, 0))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Colaborador</TableHead>
+                        <TableHead>Localização</TableHead>
+                        <TableHead>Serviço</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead className="text-right">Pedidos</TableHead>
+                        <TableHead className="text-right">Receita</TableHead>
+                        <TableHead className="text-right">Comissão</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salesReport.map((entry, i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{entry.collaborator_name}</p>
+                              <p className="text-xs text-muted-foreground">{entry.collaborator_email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{entry.location_name}</TableCell>
+                          <TableCell className="font-medium">{entry.service_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {entry.service_type === "verification" ? "Verificação" : "Aluguel"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">{entry.total_orders}</TableCell>
+                          <TableCell className="text-right font-semibold text-primary">{formatPrice(entry.total_revenue_cents)}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatPrice(entry.commission_cents)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
               )}
             </CardContent>
           </Card>

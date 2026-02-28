@@ -97,6 +97,7 @@ const Dashboard = () => {
     }
   }, [tab]);
 
+  // Realtime subscription
   useEffect(() => {
     const channel = supabase
       .channel("modems-realtime")
@@ -106,9 +107,21 @@ const Dashboard = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "chips" }, () => {
         if (selectedLocation) fetchModems(selectedLocation);
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "locations" }, () => {
+        fetchLocations();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  }, [selectedLocation]);
+
+  // Poll every 30s to detect stale modems
+  useEffect(() => {
+    if (!selectedLocation) return;
+    const interval = setInterval(() => {
+      fetchModems(selectedLocation);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [selectedLocation]);
 
   const checkAuth = async () => {
@@ -297,6 +310,16 @@ const Dashboard = () => {
     toast.success("API Key copiada!");
   };
 
+  // Determine effective modem status based on last_seen_at (stale after 2 min)
+  const getEffectiveStatus = (modem: Modem) => {
+    if (modem.status === "online" && modem.last_seen_at) {
+      const lastSeen = new Date(modem.last_seen_at).getTime();
+      const now = Date.now();
+      if (now - lastSeen > 2 * 60 * 1000) return "offline";
+    }
+    return modem.status;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "online": return <Badge className="bg-accent text-accent-foreground">Online</Badge>;
@@ -315,7 +338,7 @@ const Dashboard = () => {
   };
 
   const selectedLoc = locations.find((l) => l.id === selectedLocation);
-  const totalOnline = modems.filter((m) => m.status === "online").length;
+  const totalOnline = modems.filter((m) => getEffectiveStatus(m) === "online").length;
   const totalChips = chips.filter((c) => c.status === "active").length;
   const exhaustedChips = chips.filter((c) => c.status === "exhausted").length;
 
@@ -559,7 +582,7 @@ const Dashboard = () => {
                               <TableCell className="font-mono text-sm">{modem.imei || "—"}</TableCell>
                               <TableCell>{modem.operator || "—"}</TableCell>
                               <TableCell>{modem.signal_strength != null ? `${modem.signal_strength}%` : "—"}</TableCell>
-                              <TableCell>{getStatusBadge(modem.status)}</TableCell>
+                              <TableCell>{getStatusBadge(getEffectiveStatus(modem))}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {modem.last_seen_at ? new Date(modem.last_seen_at).toLocaleString("pt-BR") : "—"}
                               </TableCell>
@@ -578,10 +601,13 @@ const Dashboard = () => {
                     <CardDescription>Números identificados nos modems desta localização</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {chips.length === 0 ? (
+                    {(() => {
+                      const onlineModemIds = modems.filter(m => getEffectiveStatus(m) === "online").map(m => m.id);
+                      const activeChips = chips.filter(c => onlineModemIds.includes(c.modem_id));
+                      return activeChips.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
                         <Smartphone className="h-10 w-10" />
-                        <p>Nenhum chip detectado</p>
+                        <p>{chips.length > 0 ? "Modems offline — chips não disponíveis" : "Nenhum chip detectado"}</p>
                       </div>
                     ) : (
                       <Table>
@@ -595,7 +621,7 @@ const Dashboard = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {chips.map((chip) => (
+                          {activeChips.map((chip) => (
                             <TableRow
                               key={chip.id}
                               className={chip.status === "exhausted" ? "bg-destructive/5" : ""}
@@ -618,7 +644,8 @@ const Dashboard = () => {
                           ))}
                         </TableBody>
                       </Table>
-                    )}
+                    );
+                    })()}
                   </CardContent>
                 </Card>
               </>
