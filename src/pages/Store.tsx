@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import {
   Smartphone, Clock, Zap, ShoppingCart, LogOut, History,
-  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle
+  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle
 } from "lucide-react";
 
 type Service = {
@@ -56,6 +56,8 @@ const Store = () => {
   const [activeSmsOrder, setActiveSmsOrder] = useState<Order | null>(null);
   const [smsCodes, setSmsCodes] = useState<SmsCode[]>([]);
   const [smsLoading, setSmsLoading] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [orderSmsStatus, setOrderSmsStatus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -87,8 +89,30 @@ const Store = () => {
       supabase.from("profiles").select("balance_cents").eq("user_id", userId).single(),
     ]);
     setServices(svcData || []);
-    setOrders((ordData as any) || []);
+    const parsedOrders = (ordData as any) || [];
+    setOrders(parsedOrders);
     setBalance(profileData?.balance_cents ?? 0);
+
+    // Check SMS status for active orders
+    const activeOrders = parsedOrders.filter(
+      (o: Order) => (o.status === "active" || o.status === "paid") && o.chip_id
+    );
+    if (activeOrders.length > 0) {
+      const smsChecks: Record<string, boolean> = {};
+      await Promise.all(
+        activeOrders.map(async (o: Order) => {
+          const { count } = await supabase
+            .from("sms_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("chip_id", o.chip_id!)
+            .eq("direction", "incoming")
+            .gte("received_at", o.created_at);
+          smsChecks[o.id] = (count ?? 0) > 0;
+        })
+      );
+      setOrderSmsStatus(smsChecks);
+    }
+
     setLoading(false);
   };
 
@@ -99,7 +123,7 @@ const Store = () => {
       .from("sms_logs")
       .select("id, sender, message, received_at")
       .eq("chip_id", order.chip_id)
-      .eq("direction", "inbound")
+      .eq("direction", "incoming")
       .order("received_at", { ascending: false })
       .limit(20);
     setSmsCodes((sms as any) || []);
@@ -148,6 +172,20 @@ const Store = () => {
     };
     const s = map[status] || { label: status, variant: "secondary" as const };
     return <Badge variant={s.variant}>{s.label}</Badge>;
+  };
+
+  const cancelOrder = async (orderId: string) => {
+    setCancelling(orderId);
+    try {
+      const { error } = await supabase.rpc("customer_cancel_order", { _order_id: orderId });
+      if (error) throw error;
+      toast.success("Pedido cancelado e saldo estornado!");
+      if (session) await fetchAll(session.user.id);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao cancelar pedido");
+    } finally {
+      setCancelling(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -350,10 +388,22 @@ const Store = () => {
                           <div className="mt-0.5">{getStatusBadge(order.status)}</div>
                         </div>
                         {(order.status === "active" || order.status === "paid") && order.chip_id && (
-                          <Button size="sm" variant="outline" onClick={() => openSmsPopup(order)}>
-                            <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-                            Ver SMS
-                          </Button>
+                          <div className="flex flex-col gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => openSmsPopup(order)}>
+                              <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                              Ver SMS
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={cancelling === order.id || orderSmsStatus[order.id] === true}
+                              onClick={() => cancelOrder(order.id)}
+                              title={orderSmsStatus[order.id] ? "SMS já recebido — somente admin pode cancelar" : "Cancelar pedido e receber estorno"}
+                            >
+                              <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                              {cancelling === order.id ? "Cancelando..." : orderSmsStatus[order.id] ? "SMS recebido" : "Cancelar"}
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </CardContent>
