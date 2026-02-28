@@ -474,6 +474,7 @@ export type Database = {
       approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
       auto_cancel_stale_orders: { Args: never; Returns: number }
       cancel_order_refund: { Args: { _order_id: string }; Returns: undefined }
+      customer_cancel_order: { Args: { _order_id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
