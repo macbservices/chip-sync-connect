@@ -6,9 +6,57 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Smartphone, ArrowLeft, QrCode, Copy, Upload, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { Smartphone, ArrowLeft, QrCode as QrCodeIcon, Copy, Upload, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
-const PIX_KEY = "2eb9e41e-13e9-4ad9-95c2-634008562008";
+const PIX_KEY = "claudiorevestres@gmail.com";
+const PIX_NAME = "Claudio Revestres";
+const PIX_CITY = "SAO PAULO";
+
+// Generates a simplified PIX copy-paste payload (EMV format)
+const generatePixPayload = (amount: string) => {
+  const pad = (id: string, value: string) => {
+    const len = value.length.toString().padStart(2, "0");
+    return `${id}${len}${value}`;
+  };
+
+  const gui = pad("00", "br.gov.bcb.pix");
+  const key = pad("01", PIX_KEY);
+  const merchantAccount = pad("26", gui + key);
+
+  const mcc = pad("52", "0000");
+  const currency = pad("53", "986");
+
+  let amountField = "";
+  if (amount && parseFloat(amount) > 0) {
+    amountField = pad("54", parseFloat(amount).toFixed(2));
+  }
+
+  const countryCode = pad("58", "BR");
+  const merchantName = pad("59", PIX_NAME);
+  const merchantCity = pad("60", PIX_CITY);
+
+  const txid = pad("05", "***");
+  const additionalData = pad("62", txid);
+
+  const payloadWithoutCRC = pad("00", "01") + merchantAccount + mcc + currency + amountField + countryCode + merchantName + merchantCity + additionalData + "6304";
+
+  // CRC16-CCITT calculation
+  const crc16 = (str: string) => {
+    let crc = 0xFFFF;
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8;
+      for (let j = 0; j < 8; j++) {
+        if (crc & 0x8000) crc = (crc << 1) ^ 0x1021;
+        else crc <<= 1;
+      }
+      crc &= 0xFFFF;
+    }
+    return crc.toString(16).toUpperCase().padStart(4, "0");
+  };
+
+  return payloadWithoutCRC + crc16(payloadWithoutCRC);
+};
 
 const Recharge = () => {
   const navigate = useNavigate();
@@ -178,7 +226,7 @@ const Recharge = () => {
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <QrCode className="h-5 w-5 text-primary" />
+                  <QrCodeIcon className="h-5 w-5 text-primary" />
                   Pagamento via PIX
                 </CardTitle>
                 <CardDescription>
@@ -186,9 +234,9 @@ const Recharge = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {/* PIX Key */}
-                <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-5 text-center space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chave PIX (Aleatória)</p>
+                {/* PIX Key + QR Code */}
+                <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-5 text-center space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chave PIX (E-mail)</p>
                   <div className="flex items-center justify-center gap-2">
                     <code className="text-sm font-mono font-semibold text-foreground break-all">{PIX_KEY}</code>
                     <Button
@@ -203,6 +251,25 @@ const Recharge = () => {
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
+                  {amount && parseFloat(amount) >= 5 && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-xs text-muted-foreground">Escaneie o QR Code para pagar:</p>
+                      <div className="inline-block bg-white p-3 rounded-lg">
+                        <QRCodeSVG value={generatePixPayload(amount)} size={180} />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatePixPayload(amount));
+                          toast.success("Código PIX Copia e Cola copiado!");
+                        }}
+                      >
+                        <Copy className="mr-2 h-3 w-3" /> Copiar código Pix Copia e Cola
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Amount */}
