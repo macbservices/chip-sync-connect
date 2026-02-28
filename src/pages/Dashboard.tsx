@@ -23,6 +23,8 @@ import {
   BarChart3,
   TrendingUp,
   AlertTriangle,
+  Wallet,
+  ArrowUpRight,
 } from "lucide-react";
 
 type Location = {
@@ -76,9 +78,15 @@ const Dashboard = () => {
   const [newLocationDesc, setNewLocationDesc] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"chipeiras" | "relatorio">("chipeiras");
+  const [tab, setTab] = useState<"chipeiras" | "relatorio" | "saldo">("chipeiras");
   const [weeklySales, setWeeklySales] = useState<WeeklySale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
+
+  // Commission balance
+  const [commissionBalance, setCommissionBalance] = useState(0);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -94,6 +102,9 @@ const Dashboard = () => {
   useEffect(() => {
     if (tab === "relatorio") {
       fetchWeeklySales();
+    }
+    if (tab === "saldo") {
+      fetchCommissionBalance();
     }
   }, [tab]);
 
@@ -273,6 +284,65 @@ const Dashboard = () => {
     return d.toISOString().split("T")[0];
   };
 
+  const fetchCommissionBalance = async () => {
+    setWithdrawLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setWithdrawLoading(false); return; }
+
+    // Calculate total earned commissions from orders through collaborator's chips
+    const { data: locData } = await supabase.from("locations").select("id").eq("user_id", user.id);
+    if (!locData || locData.length === 0) { setCommissionBalance(0); setWithdrawLoading(false); return; }
+
+    const { data: modemData } = await supabase.from("modems").select("id").in("location_id", locData.map(l => l.id));
+    if (!modemData || modemData.length === 0) { setCommissionBalance(0); setWithdrawLoading(false); return; }
+
+    const { data: chipData } = await supabase.from("chips").select("id").in("modem_id", modemData.map(m => m.id));
+    if (!chipData || chipData.length === 0) { setCommissionBalance(0); setWithdrawLoading(false); return; }
+
+    const { data: ordersData } = await supabase
+      .from("orders")
+      .select("amount_cents")
+      .in("chip_id", chipData.map(c => c.id))
+      .in("status", ["active", "completed"]);
+
+    const totalCommission = Math.round((ordersData || []).reduce((acc, o) => acc + o.amount_cents, 0) * 0.4);
+
+    // Subtract already paid/approved withdrawals
+    const { data: wData } = await supabase
+      .from("withdrawal_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    setWithdrawals(wData || []);
+
+    const totalWithdrawn = (wData || [])
+      .filter((w: any) => ["approved", "paid"].includes(w.status))
+      .reduce((acc: number, w: any) => acc + w.amount_cents, 0);
+
+    setCommissionBalance(Math.max(0, totalCommission - totalWithdrawn));
+    setWithdrawLoading(false);
+  };
+
+  const requestWithdrawal = async () => {
+    const cents = Math.round(parseFloat(withdrawAmount) * 100);
+    if (isNaN(cents) || cents <= 0) { toast.error("Informe um valor válido"); return; }
+    if (cents > commissionBalance) { toast.error("Saldo insuficiente"); return; }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("withdrawal_requests").insert({
+      user_id: user.id,
+      amount_cents: cents,
+    });
+
+    if (error) { toast.error("Erro ao solicitar saque"); return; }
+    toast.success("Solicitação de saque enviada!");
+    setWithdrawAmount("");
+    fetchCommissionBalance();
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
@@ -385,6 +455,14 @@ const Dashboard = () => {
             >
               <BarChart3 className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Relatório</span>
+            </Button>
+            <Button
+              variant={tab === "saldo" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setTab("saldo")}
+            >
+              <Wallet className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">Saldo</span>
             </Button>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="mr-1 h-4 w-4" />
@@ -750,6 +828,116 @@ const Dashboard = () => {
                           <TableCell className="text-right font-semibold">{sale.total_orders}</TableCell>
                           <TableCell className="text-right font-semibold">{formatPrice(sale.total_revenue_cents)}</TableCell>
                           <TableCell className="text-right font-bold text-accent">{formatPrice(sale.commission_cents)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* ===== SALDO TAB ===== */}
+        {tab === "saldo" && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">Saldo de Comissões</h2>
+                <p className="text-muted-foreground text-sm mt-1">40% sobre vendas realizadas via seus chips</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchCommissionBalance} disabled={withdrawLoading}>
+                <RefreshCw className={`h-4 w-4 mr-1.5 ${withdrawLoading ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </div>
+
+            <Card className="border-primary/20">
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Wallet className="h-7 w-7 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Saldo disponível</p>
+                      <p className="text-3xl font-bold text-primary">{formatPrice(commissionBalance)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-end gap-2 w-full sm:w-auto">
+                    <div className="flex-1 sm:w-40 space-y-1">
+                      <Label className="text-xs">Valor do saque (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <Button onClick={requestWithdrawal} disabled={commissionBalance <= 0}>
+                      <ArrowUpRight className="mr-1.5 h-4 w-4" />
+                      Solicitar Saque
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico de Saques</CardTitle>
+                <CardDescription>Suas solicitações de saque e status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {withdrawLoading ? (
+                  <div className="flex justify-center py-12">
+                    <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : withdrawals.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Wallet className="mx-auto h-10 w-10 mb-3 opacity-30" />
+                    <p>Nenhum saque solicitado.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Valor</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Comprovante</TableHead>
+                        <TableHead>Data</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {withdrawals.map((w: any) => (
+                        <TableRow key={w.id}>
+                          <TableCell className="font-bold">{formatPrice(w.amount_cents)}</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              w.status === "paid" ? "default" :
+                              w.status === "approved" ? "default" :
+                              w.status === "rejected" ? "destructive" : "outline"
+                            }>
+                              {w.status === "pending" ? "Pendente" :
+                               w.status === "approved" ? "Aprovado" :
+                               w.status === "paid" ? "Pago" : "Rejeitado"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {w.payment_proof_url ? (
+                              <Button variant="link" size="sm" className="p-0 h-auto" onClick={async () => {
+                                const { data } = await supabase.storage.from("payment-proofs").createSignedUrl(w.payment_proof_url, 60);
+                                if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                              }}>
+                                Ver comprovante →
+                              </Button>
+                            ) : <span className="text-muted-foreground text-sm">—</span>}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(w.created_at).toLocaleDateString("pt-BR")}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
