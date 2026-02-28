@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw
 } from "lucide-react";
 
 type Service = {
@@ -101,6 +101,11 @@ const Admin = () => {
   const [newUserName, setNewUserName] = useState("");
   const [newUserRole, setNewUserRole] = useState("customer");
 
+  // Balance dialog
+  const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
+  const [balanceUser, setBalanceUser] = useState<UserEntry | null>(null);
+  const [balanceAmount, setBalanceAmount] = useState("");
+
   useEffect(() => {
     if (roleLoading) return;
     if (!isAdmin) { navigate("/sem-acesso"); return; }
@@ -110,6 +115,13 @@ const Admin = () => {
   const fetchAll = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Also trigger auto-cancel of stale orders
+    supabase.rpc("auto_cancel_stale_orders").then(({ data, error }) => {
+      if (!error && data && data > 0) {
+        toast.info(`${data} pedido(s) auto-cancelado(s) por falta de SMS`);
+      }
+    });
 
     const [{ data: svcData }, { data: ordData }, { data: rechData }, { data: chipData }] = await Promise.all([
       supabase.from("services").select("*").order("created_at", { ascending: false }),
@@ -204,7 +216,6 @@ const Admin = () => {
       return;
     }
 
-    // Get phone number from selected chip if not manually entered
     let phoneToUse = orderPhone;
     if (orderChipId && !phoneToUse) {
       const chip = chips.find((c) => c.id === orderChipId);
@@ -231,6 +242,14 @@ const Admin = () => {
     fetchAll();
   };
 
+  const cancelOrderReturnChip = async (order: Order) => {
+    if (!confirm("Cancelar pedido, estornar saldo e devolver chip para venda?")) return;
+    const { error } = await supabase.rpc("admin_cancel_order_return_chip", { _order_id: order.id });
+    if (error) { toast.error("Erro ao cancelar: " + error.message); return; }
+    toast.success("Pedido cancelado, saldo estornado e chip devolvido!");
+    fetchAll();
+  };
+
   const completeOrder = async (id: string) => {
     await supabase.from("orders").update({ status: "completed" }).eq("id", id);
     toast.success("Pedido concluído!");
@@ -245,10 +264,29 @@ const Admin = () => {
   };
 
   const rejectRecharge = async (r: RechargeRequest) => {
-    // If already deducted from balance on order (but recharges don't deduct — just credit)
     await supabase.from("recharge_requests").update({ status: "rejected" }).eq("id", r.id);
     toast.success("Recarga rejeitada");
     fetchAll();
+  };
+
+  const addBalance = async () => {
+    if (!balanceUser || !balanceAmount) return;
+    const cents = Math.round(parseFloat(balanceAmount) * 100);
+    if (isNaN(cents) || cents <= 0) {
+      toast.error("Informe um valor válido");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "add_balance", user_id: balanceUser.id, amount_cents: cents },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || "Erro ao adicionar saldo");
+      return;
+    }
+    toast.success(`Saldo adicionado! Novo saldo: ${formatPrice(data.new_balance)}`);
+    setBalanceDialogOpen(false);
+    setBalanceAmount("");
+    fetchUsers();
   };
 
   const formatPrice = (cents: number) =>
@@ -401,7 +439,7 @@ const Admin = () => {
           <Card>
             <CardHeader>
               <CardTitle>Pedidos dos Clientes</CardTitle>
-              <CardDescription>Atribua um chip ao pedido para ativá-lo</CardDescription>
+              <CardDescription>Atribua um chip ao pedido para ativá-lo. Pedidos sem SMS são cancelados automaticamente após 10 min.</CardDescription>
             </CardHeader>
             <CardContent>
               {orders.length === 0 ? (
@@ -450,9 +488,19 @@ const Admin = () => {
                               </>
                             )}
                             {order.status === "active" && (
-                              <Button size="sm" variant="outline" onClick={() => completeOrder(order.id)}>
-                                Concluir
-                              </Button>
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => completeOrder(order.id)}>
+                                  Concluir
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  title="Cancelar, estornar e devolver chip"
+                                  onClick={() => cancelOrderReturnChip(order)}
+                                >
+                                  <RotateCcw className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -531,7 +579,7 @@ const Admin = () => {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Gerenciar Usuários</CardTitle>
-                <CardDescription>Crie, altere roles ou remova usuários do sistema</CardDescription>
+                <CardDescription>Crie, altere roles, adicione saldo ou remova usuários do sistema</CardDescription>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={fetchUsers} disabled={usersLoading}>
@@ -597,22 +645,36 @@ const Admin = () => {
                           {new Date(u.created_at).toLocaleDateString("pt-BR")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Remover usuário"
-                            onClick={async () => {
-                              if (!confirm(`Tem certeza que deseja remover ${u.email}?`)) return;
-                              const { error } = await supabase.functions.invoke("manage-users", {
-                                body: { action: "delete", user_id: u.id },
-                              });
-                              if (error) { toast.error("Erro ao remover usuário"); return; }
-                              toast.success("Usuário removido!");
-                              fetchUsers();
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Adicionar saldo"
+                              onClick={() => {
+                                setBalanceUser(u);
+                                setBalanceAmount("");
+                                setBalanceDialogOpen(true);
+                              }}
+                            >
+                              <BanknoteIcon className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Remover usuário"
+                              onClick={async () => {
+                                if (!confirm(`Tem certeza que deseja remover ${u.email}?`)) return;
+                                const { error } = await supabase.functions.invoke("manage-users", {
+                                  body: { action: "delete", user_id: u.id },
+                                });
+                                if (error) { toast.error("Erro ao remover usuário"); return; }
+                                toast.success("Usuário removido!");
+                                fetchUsers();
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -790,6 +852,38 @@ const Admin = () => {
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" /> Criar Usuário
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Balance Dialog */}
+      <Dialog open={balanceDialogOpen} onOpenChange={setBalanceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Saldo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{balanceUser?.full_name || balanceUser?.email}</p>
+              <p className="text-muted-foreground">Saldo atual: {balanceUser ? formatPrice(balanceUser.balance_cents) : "—"}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Valor a adicionar (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={balanceAmount}
+                onChange={(e) => setBalanceAmount(e.target.value)}
+                placeholder="10.00"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setBalanceDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={addBalance} className="flex-1">
+                <BanknoteIcon className="mr-2 h-4 w-4" /> Adicionar
               </Button>
             </div>
           </div>

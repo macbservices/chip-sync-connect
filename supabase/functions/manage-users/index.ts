@@ -149,11 +149,44 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Remove existing roles and set new one
       await adminClient.from("user_roles").delete().eq("user_id", user_id);
       await adminClient.from("user_roles").insert({ user_id, role });
 
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "add_balance") {
+      const { user_id, amount_cents } = body;
+      if (!user_id || typeof amount_cents !== "number" || amount_cents <= 0) {
+        return new Response(
+          JSON.stringify({ error: "ID e valor (positivo) obrigatórios" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: profile, error: profError } = await adminClient
+        .from("profiles")
+        .select("balance_cents")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (profError || !profile) {
+        return new Response(
+          JSON.stringify({ error: "Perfil não encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { error: updateError } = await adminClient
+        .from("profiles")
+        .update({ balance_cents: profile.balance_cents + amount_cents, updated_at: new Date().toISOString() })
+        .eq("user_id", user_id);
+
+      if (updateError) throw updateError;
+
+      return new Response(JSON.stringify({ success: true, new_balance: profile.balance_cents + amount_cents }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
