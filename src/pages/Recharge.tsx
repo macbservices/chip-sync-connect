@@ -234,6 +234,22 @@ const Recharge = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                {/* Amount - FIRST so QR code appears after */}
+                <div className="space-y-2">
+                  <Label htmlFor="amount" className="font-medium">Valor da recarga (R$)</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    min="5"
+                    step="1"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="Ex: 50"
+                    className="h-11 text-lg"
+                  />
+                  <p className="text-xs text-muted-foreground">Valor mínimo: R$ 5,00</p>
+                </div>
+
                 {/* PIX Key + QR Code */}
                 <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-5 text-center space-y-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chave PIX (E-mail)</p>
@@ -253,9 +269,9 @@ const Recharge = () => {
                   </div>
                   {amount && parseFloat(amount) >= 5 && (
                     <div className="space-y-2 pt-2">
-                      <p className="text-xs text-muted-foreground">Escaneie o QR Code para pagar:</p>
-                      <div className="inline-block bg-white p-3 rounded-lg">
-                        <QRCodeSVG value={generatePixPayload(amount)} size={180} />
+                      <p className="text-xs text-muted-foreground">Escaneie o QR Code para pagar <strong>{parseFloat(amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>:</p>
+                      <div className="inline-block bg-white p-3 rounded-lg shadow-sm">
+                        <QRCodeSVG value={generatePixPayload(amount)} size={200} />
                       </div>
                       <Button
                         variant="outline"
@@ -270,22 +286,6 @@ const Recharge = () => {
                       </Button>
                     </div>
                   )}
-                </div>
-
-                {/* Amount */}
-                <div className="space-y-2">
-                  <Label htmlFor="amount" className="font-medium">Valor da recarga (R$)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    min="5"
-                    step="1"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="Ex: 50"
-                    className="h-11 text-lg"
-                  />
-                  <p className="text-xs text-muted-foreground">Valor mínimo: R$ 5,00</p>
                 </div>
 
                 {/* Proof */}
