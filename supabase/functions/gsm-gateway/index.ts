@@ -20,7 +20,8 @@ function isValidPhoneNumber(val: unknown): val is string {
 }
 
 function isValidSignalStrength(val: unknown): boolean {
-  return val === undefined || val === null || (typeof val === "number" && val >= -120 && val <= 0);
+  // Accept both CSQ values (0-31, 99) and dBm values (-120 to 0)
+  return val === undefined || val === null || (typeof val === "number" && val >= -120 && val <= 99);
 }
 
 Deno.serve(async (req) => {
