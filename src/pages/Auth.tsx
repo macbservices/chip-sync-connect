@@ -1,21 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Smartphone } from "lucide-react";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const initialRole = searchParams.get("role") === "collaborator" ? "collaborator" : "customer";
+  const [role, setRole] = useState<"customer" | "collaborator">(initialRole);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   const redirectAfterLogin = async (userId: string) => {
     // Check role and redirect accordingly
@@ -55,22 +58,17 @@ const Auth = () => {
           email,
           password,
           options: {
-            data: { full_name: fullName },
+            data: { full_name: fullName, role },
             emailRedirectTo: window.location.origin,
           },
         });
         if (error) throw error;
 
-        // Assign customer role on signup (if user was created immediately)
         if (data.user && !data.user.email_confirmed_at) {
           toast.success("Conta criada! Verifique seu e-mail para confirmar.");
         } else if (data.user) {
-          // Auto-confirmed — assign role and redirect
-          await supabase.from("user_roles").insert({
-            user_id: data.user.id,
-            role: "customer",
-          });
-          navigate("/store");
+          // Auto-confirmed — redirect based on chosen role
+          navigate(role === "collaborator" ? "/dashboard" : "/store");
         }
       }
     } catch (error: any) {
@@ -89,22 +87,41 @@ const Auth = () => {
           </div>
           <CardTitle className="text-2xl">CHIP SMS</CardTitle>
           <CardDescription>
-            {isLogin ? "Entre na sua conta" : "Crie sua conta de cliente"}
+            {isLogin ? "Entre na sua conta" : "Crie sua conta"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Nome completo</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Seu nome"
-                  required={!isLogin}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nome completo</Label>
+                  <Input
+                    id="fullName"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Seu nome"
+                    required={!isLogin}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de conta</Label>
+                  <RadioGroup
+                    value={role}
+                    onValueChange={(v) => setRole(v as "customer" | "collaborator")}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="customer" id="role-customer" />
+                      <Label htmlFor="role-customer" className="cursor-pointer font-normal">Cliente</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="collaborator" id="role-collaborator" />
+                      <Label htmlFor="role-collaborator" className="cursor-pointer font-normal">Colaborador</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
