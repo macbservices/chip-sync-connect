@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound
 } from "lucide-react";
 
 type Service = {
@@ -105,6 +105,11 @@ const Admin = () => {
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [balanceUser, setBalanceUser] = useState<UserEntry | null>(null);
   const [balanceAmount, setBalanceAmount] = useState("");
+
+  // Reset password dialog
+  const [resetPwDialogOpen, setResetPwDialogOpen] = useState(false);
+  const [resetPwUser, setResetPwUser] = useState<UserEntry | null>(null);
+  const [resetPwValue, setResetPwValue] = useState("");
 
   useEffect(() => {
     if (roleLoading) return;
@@ -661,6 +666,18 @@ const Admin = () => {
                             <Button
                               variant="ghost"
                               size="icon"
+                              title="Resetar senha"
+                              onClick={() => {
+                                setResetPwUser(u);
+                                setResetPwValue("");
+                                setResetPwDialogOpen(true);
+                              }}
+                            >
+                              <KeyRound className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               title="Remover usuário"
                               onClick={async () => {
                                 if (!confirm(`Tem certeza que deseja remover ${u.email}?`)) return;
@@ -884,6 +901,52 @@ const Admin = () => {
               <Button variant="outline" className="flex-1" onClick={() => setBalanceDialogOpen(false)}>Cancelar</Button>
               <Button onClick={addBalance} className="flex-1">
                 <BanknoteIcon className="mr-2 h-4 w-4" /> Adicionar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPwDialogOpen} onOpenChange={setResetPwDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resetar Senha</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{resetPwUser?.full_name || resetPwUser?.email}</p>
+              <p className="text-muted-foreground">{resetPwUser?.email}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Nova senha</Label>
+              <Input
+                type="password"
+                value={resetPwValue}
+                onChange={(e) => setResetPwValue(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setResetPwDialogOpen(false)}>Cancelar</Button>
+              <Button
+                className="flex-1"
+                onClick={async () => {
+                  if (!resetPwUser || !resetPwValue || resetPwValue.length < 6) {
+                    toast.error("Senha deve ter no mínimo 6 caracteres");
+                    return;
+                  }
+                  const { data, error } = await supabase.functions.invoke("manage-users", {
+                    body: { action: "reset_password", user_id: resetPwUser.id, new_password: resetPwValue },
+                  });
+                  if (error || data?.error) {
+                    toast.error(data?.error || "Erro ao resetar senha");
+                    return;
+                  }
+                  toast.success("Senha resetada com sucesso!");
+                  setResetPwDialogOpen(false);
+                }}
+              >
+                <KeyRound className="mr-2 h-4 w-4" /> Resetar
               </Button>
             </div>
           </div>
