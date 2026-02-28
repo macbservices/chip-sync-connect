@@ -37,6 +37,14 @@ const App = () => (
               </RouteGuard>
             }
           />
+          <Route
+            path="/colaborador"
+            element={
+              <RouteGuard allowedRoles={["collaborator", "admin"]}>
+                <Dashboard />
+              </RouteGuard>
+            }
+          />
 
           {/* Customer only: store & recharge */}
           <Route

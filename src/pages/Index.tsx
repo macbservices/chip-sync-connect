@@ -17,7 +17,7 @@ const Index = () => {
         .eq("user_id", data.session.user.id);
       const roleList = (roles || []).map((r) => r.role);
       if (roleList.includes("admin")) navigate("/admin");
-      else if (roleList.includes("collaborator")) navigate("/dashboard");
+      else if (roleList.includes("collaborator")) navigate("/colaborador");
       else navigate("/store");
     });
   }, [navigate]);
