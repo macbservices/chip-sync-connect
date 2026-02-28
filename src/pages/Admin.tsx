@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload
 } from "lucide-react";
 
 type Service = {
@@ -69,7 +69,7 @@ type UserEntry = {
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals">("orders");
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -126,6 +126,24 @@ const Admin = () => {
   const [salesReport, setSalesReport] = useState<SalesReportEntry[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Withdrawals
+  type WithdrawalEntry = {
+    id: string;
+    user_id: string;
+    amount_cents: number;
+    status: string;
+    payment_proof_url: string | null;
+    admin_notes: string | null;
+    created_at: string;
+    user_name?: string;
+    user_email?: string;
+  };
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalEntry[]>([]);
+  const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [confirmPayDialogOpen, setConfirmPayDialogOpen] = useState(false);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalEntry | null>(null);
+
   useEffect(() => {
     if (roleLoading) return;
     if (!isAdmin) { navigate("/sem-acesso"); return; }
@@ -170,7 +188,67 @@ const Admin = () => {
   useEffect(() => {
     if (tab === "users" && users.length === 0) fetchUsers();
     if (tab === "report" && salesReport.length === 0) fetchSalesReport();
+    if (tab === "withdrawals") fetchWithdrawals();
   }, [tab]);
+
+  const fetchWithdrawals = async () => {
+    setWithdrawalsLoading(true);
+    // Get all withdrawal requests (admin can see all via RLS)
+    const { data: wData, error } = await supabase
+      .from("withdrawal_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) { toast.error("Erro ao carregar saques"); setWithdrawalsLoading(false); return; }
+
+    // Get user info for each withdrawal
+    const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
+    const userMap = new Map((usersData || []).map((u: any) => [u.id, u]));
+
+    const enriched = (wData || []).map((w: any) => {
+      const u = userMap.get(w.user_id) as any;
+      return { ...w, user_name: u?.full_name || "—", user_email: u?.email || "—" };
+    });
+
+    setWithdrawalRequests(enriched);
+    setWithdrawalsLoading(false);
+  };
+
+  const approveWithdrawal = async (w: WithdrawalEntry) => {
+    const { error } = await supabase.from("withdrawal_requests").update({ status: "approved", updated_at: new Date().toISOString() }).eq("id", w.id);
+    if (error) { toast.error("Erro ao aprovar saque"); return; }
+    toast.success("Saque aprovado!");
+    fetchWithdrawals();
+  };
+
+  const rejectWithdrawal = async (w: WithdrawalEntry) => {
+    const { error } = await supabase.from("withdrawal_requests").update({ status: "rejected", updated_at: new Date().toISOString() }).eq("id", w.id);
+    if (error) { toast.error("Erro ao rejeitar saque"); return; }
+    toast.success("Saque rejeitado!");
+    fetchWithdrawals();
+  };
+
+  const confirmPayment = async () => {
+    if (!selectedWithdrawal || !paymentProofFile) { toast.error("Anexe o comprovante"); return; }
+
+    // Upload proof
+    const filePath = `${selectedWithdrawal.id}/${Date.now()}-${paymentProofFile.name}`;
+    const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(filePath, paymentProofFile);
+    if (uploadError) { toast.error("Erro ao enviar comprovante"); return; }
+
+    const { error } = await supabase.from("withdrawal_requests").update({
+      status: "paid",
+      payment_proof_url: filePath,
+      updated_at: new Date().toISOString(),
+    }).eq("id", selectedWithdrawal.id);
+
+    if (error) { toast.error("Erro ao confirmar pagamento"); return; }
+    toast.success("Pagamento confirmado!");
+    setConfirmPayDialogOpen(false);
+    setPaymentProofFile(null);
+    setSelectedWithdrawal(null);
+    fetchWithdrawals();
+  };
 
   const fetchSalesReport = async () => {
     setReportLoading(true);
@@ -465,6 +543,15 @@ const Admin = () => {
             <Button variant={tab === "report" ? "default" : "ghost"} size="sm" onClick={() => setTab("report")}>
               <BarChart3 className="mr-1.5 h-4 w-4" />
               <span className="hidden sm:inline">Relatório</span>
+            </Button>
+            <Button variant={tab === "withdrawals" ? "default" : "ghost"} size="sm" onClick={() => setTab("withdrawals")} className="relative">
+              <ArrowDownToLine className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Saques</span>
+              {withdrawalRequests.filter(w => w.status === "pending").length > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
+                  {withdrawalRequests.filter(w => w.status === "pending").length}
+                </span>
+              )}
             </Button>
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" />
@@ -892,6 +979,101 @@ const Admin = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* ====== WITHDRAWALS TAB ====== */}
+        {tab === "withdrawals" && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ArrowDownToLine className="h-5 w-5" />
+                  Solicitações de Saque
+                </CardTitle>
+                <CardDescription>Gerencie os saques de comissão dos colaboradores</CardDescription>
+              </div>
+              <Button size="sm" variant="outline" onClick={fetchWithdrawals} disabled={withdrawalsLoading}>
+                <RefreshCw className={`mr-1 h-4 w-4 ${withdrawalsLoading ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {withdrawalsLoading ? (
+                <div className="flex justify-center py-12">
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : withdrawalRequests.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">Nenhuma solicitação de saque.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Comprovante</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {withdrawalRequests.map((w) => (
+                      <TableRow key={w.id} className={w.status === "pending" ? "bg-warning/5" : ""}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{w.user_name}</p>
+                            <p className="text-xs text-muted-foreground">{w.user_email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-bold text-primary">{formatPrice(w.amount_cents)}</TableCell>
+                        <TableCell>{getStatusBadge(w.status === "paid" ? "approved" : w.status)}</TableCell>
+                        <TableCell>
+                          {w.payment_proof_url ? (
+                            <Button variant="link" size="sm" className="p-0 h-auto" onClick={async () => {
+                              const { data } = await supabase.storage.from("payment-proofs").createSignedUrl(w.payment_proof_url!, 60);
+                              if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                            }}>
+                              Ver comprovante →
+                            </Button>
+                          ) : <span className="text-muted-foreground text-sm">—</span>}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(w.created_at).toLocaleDateString("pt-BR")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            {w.status === "pending" && (
+                              <>
+                                <Button variant="ghost" size="icon" title="Aprovar" onClick={() => approveWithdrawal(w)}>
+                                  <Check className="h-4 w-4 text-accent" />
+                                </Button>
+                                <Button variant="ghost" size="icon" title="Rejeitar" onClick={() => rejectWithdrawal(w)}>
+                                  <X className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
+                            {w.status === "approved" && (
+                              <Button size="sm" variant="outline" onClick={() => {
+                                setSelectedWithdrawal(w);
+                                setPaymentProofFile(null);
+                                setConfirmPayDialogOpen(true);
+                              }}>
+                                <Upload className="mr-1.5 h-4 w-4" />
+                                Confirmar Pagamento
+                              </Button>
+                            )}
+                            {w.status === "paid" && (
+                              <Badge variant="default">Pago ✓</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
 
       {/* Service Dialog */}
@@ -1138,6 +1320,38 @@ const Admin = () => {
                 }}
               >
                 <KeyRound className="mr-2 h-4 w-4" /> Resetar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Payment Dialog */}
+      <Dialog open={confirmPayDialogOpen} onOpenChange={setConfirmPayDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{selectedWithdrawal?.user_name}</p>
+              <p className="text-muted-foreground">{selectedWithdrawal?.user_email}</p>
+              <p className="text-lg font-bold text-primary mt-1">
+                {selectedWithdrawal ? formatPrice(selectedWithdrawal.amount_cents) : "—"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Comprovante de pagamento *</Label>
+              <Input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setPaymentProofFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmPayDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={confirmPayment} className="flex-1" disabled={!paymentProofFile}>
+                <Upload className="mr-2 h-4 w-4" /> Confirmar Pagamento
               </Button>
             </div>
           </div>
