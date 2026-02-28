@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { RouteGuard } from "@/components/RouteGuard";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
+import ChooseRole from "./pages/ChooseRole";
 import Dashboard from "./pages/Dashboard";
 import Store from "./pages/Store";
 import Recharge from "./pages/Recharge";
@@ -26,6 +28,8 @@ const App = () => (
           {/* Public */}
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/escolher-perfil" element={<ChooseRole />} />
           <Route path="/sem-acesso" element={<NoAccess />} />
 
           {/* Collaborator only: chipeira management + sales report */}
