@@ -233,20 +233,22 @@ const Admin = () => {
     fetchWithdrawals();
   };
 
-  const confirmPayment = async () => {
-    if (!selectedWithdrawal || !paymentProofFile) { toast.error("Anexe o comprovante"); return; }
+  const confirmPayment = async (withProof: boolean) => {
+    if (!selectedWithdrawal) return;
 
-    // Upload proof
-    const filePath = `${selectedWithdrawal.id}/${Date.now()}-${paymentProofFile.name}`;
-    const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(filePath, paymentProofFile);
-    if (uploadError) { toast.error("Erro ao enviar comprovante"); return; }
+    let filePath: string | null = null;
 
-    const { error } = await supabase.from("withdrawal_requests").update({
-      status: "paid",
-      payment_proof_url: filePath,
-      updated_at: new Date().toISOString(),
-    }).eq("id", selectedWithdrawal.id);
+    if (withProof) {
+      if (!paymentProofFile) { toast.error("Anexe o comprovante"); return; }
+      filePath = `${selectedWithdrawal.id}/${Date.now()}-${paymentProofFile.name}`;
+      const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(filePath, paymentProofFile);
+      if (uploadError) { toast.error("Erro ao enviar comprovante"); return; }
+    }
 
+    const updateData: any = { status: "paid", updated_at: new Date().toISOString() };
+    if (filePath) updateData.payment_proof_url = filePath;
+
+    const { error } = await supabase.from("withdrawal_requests").update(updateData).eq("id", selectedWithdrawal.id);
     if (error) { toast.error("Erro ao confirmar pagamento"); return; }
     toast.success("Pagamento confirmado!");
     setConfirmPayDialogOpen(false);
@@ -1410,18 +1412,23 @@ const Admin = () => {
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Comprovante de pagamento *</Label>
+              <Label>Comprovante de pagamento (opcional)</Label>
               <Input
                 type="file"
                 accept="image/*,.pdf"
                 onChange={(e) => setPaymentProofFile(e.target.files?.[0] || null)}
               />
             </div>
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1" onClick={() => setConfirmPayDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={confirmPayment} className="flex-1" disabled={!paymentProofFile}>
-                <Upload className="mr-2 h-4 w-4" /> Confirmar Pagamento
+            <div className="flex flex-col gap-2 pt-2">
+              <Button onClick={() => confirmPayment(false)} className="w-full" variant="default">
+                <Check className="mr-2 h-4 w-4" /> Confirmar sem comprovante
               </Button>
+              {paymentProofFile && (
+                <Button onClick={() => confirmPayment(true)} className="w-full" variant="outline">
+                  <Upload className="mr-2 h-4 w-4" /> Confirmar com comprovante
+                </Button>
+              )}
+              <Button variant="ghost" className="w-full" onClick={() => setConfirmPayDialogOpen(false)}>Cancelar</Button>
             </div>
           </div>
         </DialogContent>
