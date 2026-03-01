@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useRole } from "@/hooks/use-role";
 import {
   LogOut,
   MapPin,
@@ -35,6 +36,7 @@ type Location = {
   is_active: boolean;
   last_seen_at: string | null;
   created_at: string;
+  user_id: string;
 };
 
 type Modem = {
@@ -70,6 +72,7 @@ type WeeklySale = {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useRole();
   const [locations, setLocations] = useState<Location[]>([]);
   const [modems, setModems] = useState<Modem[]>([]);
   const [chips, setChips] = useState<Chip[]>([]);
@@ -87,6 +90,7 @@ const Dashboard = () => {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [ownerMap, setOwnerMap] = useState<Record<string, { name: string; email: string }>>({}); 
 
   useEffect(() => {
     checkAuth();
@@ -151,6 +155,23 @@ const Dashboard = () => {
     if (data && data.length > 0 && !selectedLocation) {
       setSelectedLocation(data[0].id);
     }
+
+    // If admin, fetch owner info for each location
+    if (isAdmin && data && data.length > 0) {
+      const uniqueUserIds = [...new Set(data.map(l => l.user_id))];
+      const { data: usersData } = await supabase.functions.invoke("manage-users", {
+        body: { action: "list" },
+      });
+      if (usersData) {
+        const map: Record<string, { name: string; email: string }> = {};
+        for (const uid of uniqueUserIds) {
+          const u = (usersData as any[]).find((u: any) => u.id === uid);
+          if (u) map[uid] = { name: u.full_name || "—", email: u.email || "—" };
+        }
+        setOwnerMap(map);
+      }
+    }
+
     setLoading(false);
   };
 
@@ -592,6 +613,11 @@ const Dashboard = () => {
                           <div>
                             <p className="font-medium">{loc.name}</p>
                             {loc.description && <p className="text-sm text-muted-foreground">{loc.description}</p>}
+                            {isAdmin && ownerMap[loc.user_id] && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                👤 {ownerMap[loc.user_id].name} — {ownerMap[loc.user_id].email}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
