@@ -187,6 +187,7 @@ export type Database = {
           created_at: string
           customer_id: string
           expires_at: string | null
+          fraud_alert: string | null
           id: string
           phone_number: string | null
           pix_proof_url: string | null
@@ -201,6 +202,7 @@ export type Database = {
           created_at?: string
           customer_id: string
           expires_at?: string | null
+          fraud_alert?: string | null
           id?: string
           phone_number?: string | null
           pix_proof_url?: string | null
@@ -215,6 +217,7 @@ export type Database = {
           created_at?: string
           customer_id?: string
           expires_at?: string | null
+          fraud_alert?: string | null
           id?: string
           phone_number?: string | null
           pix_proof_url?: string | null

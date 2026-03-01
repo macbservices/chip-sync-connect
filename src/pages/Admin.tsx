@@ -36,6 +36,7 @@ type Order = {
   phone_number: string | null;
   chip_id: string | null;
   admin_notes: string | null;
+  fraud_alert: string | null;
   created_at: string;
   service: { name: string; type: string } | null;
 };
@@ -168,7 +169,7 @@ const Admin = () => {
 
     const [{ data: svcData }, { data: ordData }, { data: rechData }, { data: chipData }] = await Promise.all([
       supabase.from("services").select("*").order("created_at", { ascending: false }),
-      supabase.from("orders").select("*, service:services(name, type)").order("created_at", { ascending: false }),
+      supabase.from("orders").select("*, service:services(name, type)").order("created_at", { ascending: false }) as any,
       supabase.from("recharge_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("chips").select("id, phone_number, operator, status").in("status", ["active"]),
     ]);
@@ -682,8 +683,16 @@ const Admin = () => {
                   </TableHeader>
                   <TableBody>
                     {orders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-medium">{order.service?.name || "—"}</TableCell>
+                      <TableRow key={order.id} className={order.fraud_alert ? "bg-destructive/10" : ""}>
+                        <TableCell className="font-medium">
+                          {order.service?.name || "—"}
+                          {order.fraud_alert && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <AlertTriangle className="h-3 w-3 text-destructive" />
+                              <span className="text-xs text-destructive font-semibold">{order.fraud_alert}</span>
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{formatPrice(order.amount_cents)}</TableCell>
                         <TableCell>{getStatusBadge(order.status)}</TableCell>
                         <TableCell className="font-mono text-sm">{order.phone_number || "—"}</TableCell>
