@@ -368,8 +368,9 @@ const Dashboard = () => {
   };
 
   const deleteLocation = async (id: string) => {
-    const { error } = await supabase.from("locations").delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir"); return; }
+    if (!confirm("Tem certeza? Todos os modems e chips desta localização serão excluídos.")) return;
+    const { error } = await supabase.rpc("delete_location_cascade", { _location_id: id });
+    if (error) { toast.error("Erro ao excluir: " + error.message); return; }
     toast.success("Localização excluída");
     if (selectedLocation === id) setSelectedLocation(null);
     fetchLocations();
