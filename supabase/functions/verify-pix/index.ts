@@ -92,6 +92,27 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Check for duplicate proof: if any OTHER recharge with same proof was already approved
+    const { data: duplicates } = await adminClient
+      .from("recharge_requests")
+      .select("id")
+      .eq("pix_proof_url", recharge.pix_proof_url)
+      .eq("status", "approved")
+      .neq("id", recharge_id);
+
+    if (duplicates && duplicates.length > 0) {
+      // Mark as rejected
+      await adminClient
+        .from("recharge_requests")
+        .update({ status: "rejected", admin_notes: "Comprovante já utilizado em outra recarga.", updated_at: new Date().toISOString() })
+        .eq("id", recharge_id);
+
+      return new Response(JSON.stringify({ error: "Este comprovante já foi utilizado em outra recarga.", approved: false }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Get signed URL for the proof image
     const { data: signedData } = await adminClient.storage
       .from("pix-proofs")

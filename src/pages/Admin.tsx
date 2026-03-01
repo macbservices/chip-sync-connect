@@ -106,6 +106,11 @@ const Admin = () => {
   const [balanceUser, setBalanceUser] = useState<UserEntry | null>(null);
   const [balanceAmount, setBalanceAmount] = useState("");
 
+  // Deduct balance dialog
+  const [deductDialogOpen, setDeductDialogOpen] = useState(false);
+  const [deductUser, setDeductUser] = useState<UserEntry | null>(null);
+  const [deductAmount, setDeductAmount] = useState("");
+
   // Reset password dialog
   const [resetPwDialogOpen, setResetPwDialogOpen] = useState(false);
   const [resetPwUser, setResetPwUser] = useState<UserEntry | null>(null);
@@ -470,6 +475,26 @@ const Admin = () => {
     toast.success(`Saldo adicionado! Novo saldo: ${formatPrice(data.new_balance)}`);
     setBalanceDialogOpen(false);
     setBalanceAmount("");
+    fetchUsers();
+  };
+
+  const deductBalance = async () => {
+    if (!deductUser || !deductAmount) return;
+    const cents = Math.round(parseFloat(deductAmount) * 100);
+    if (isNaN(cents) || cents <= 0) {
+      toast.error("Informe um valor válido");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("manage-users", {
+      body: { action: "deduct_balance", user_id: deductUser.id, amount_cents: cents },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || "Erro ao retirar saldo");
+      return;
+    }
+    toast.success(`Saldo retirado! Novo saldo: ${formatPrice(data.new_balance)}`);
+    setDeductDialogOpen(false);
+    setDeductAmount("");
     fetchUsers();
   };
 
@@ -854,6 +879,18 @@ const Admin = () => {
                               }}
                             >
                               <BanknoteIcon className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Retirar saldo"
+                              onClick={() => {
+                                setDeductUser(u);
+                                setDeductAmount("");
+                                setDeductDialogOpen(true);
+                              }}
+                            >
+                              <ArrowDownToLine className="h-4 w-4 text-destructive" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1274,6 +1311,38 @@ const Admin = () => {
               <Button variant="outline" className="flex-1" onClick={() => setBalanceDialogOpen(false)}>Cancelar</Button>
               <Button onClick={addBalance} className="flex-1">
                 <BanknoteIcon className="mr-2 h-4 w-4" /> Adicionar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deduct Balance Dialog */}
+      <Dialog open={deductDialogOpen} onOpenChange={setDeductDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Retirar Saldo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{deductUser?.full_name || deductUser?.email}</p>
+              <p className="text-muted-foreground">Saldo atual: {deductUser ? formatPrice(deductUser.balance_cents) : "—"}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Valor a retirar (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={deductAmount}
+                onChange={(e) => setDeductAmount(e.target.value)}
+                placeholder="10.00"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeductDialogOpen(false)}>Cancelar</Button>
+              <Button variant="destructive" onClick={deductBalance} className="flex-1">
+                <ArrowDownToLine className="mr-2 h-4 w-4" /> Retirar
               </Button>
             </div>
           </div>

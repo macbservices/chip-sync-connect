@@ -191,6 +191,48 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "deduct_balance") {
+      const { user_id, amount_cents } = body;
+      if (!user_id || typeof amount_cents !== "number" || amount_cents <= 0) {
+        return new Response(
+          JSON.stringify({ error: "ID e valor (positivo) obrigatórios" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: profile, error: profError } = await adminClient
+        .from("profiles")
+        .select("balance_cents")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (profError || !profile) {
+        return new Response(
+          JSON.stringify({ error: "Perfil não encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const newBalance = profile.balance_cents - amount_cents;
+      if (newBalance < 0) {
+        return new Response(
+          JSON.stringify({ error: "Saldo insuficiente para retirar esse valor" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { error: updateError } = await adminClient
+        .from("profiles")
+        .update({ balance_cents: newBalance, updated_at: new Date().toISOString() })
+        .eq("user_id", user_id);
+
+      if (updateError) throw updateError;
+
+      return new Response(JSON.stringify({ success: true, new_balance: newBalance }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "reset_password") {
       const { user_id, new_password } = body;
       if (!user_id || !new_password || new_password.length < 6) {
