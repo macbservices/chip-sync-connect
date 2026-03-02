@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import {
   Smartphone, Clock, Zap, ShoppingCart, LogOut, History,
-  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle
+  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 type Service = {
   id: string;
@@ -50,6 +51,7 @@ const Store = () => {
   const [session, setSession] = useState<any>(null);
   const [tab, setTab] = useState<"store" | "history">("store");
   const [buying, setBuying] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // SMS popup
   const [smsPopupOpen, setSmsPopupOpen] = useState(false);
@@ -274,9 +276,18 @@ const Store = () => {
           <>
             <div className="mx-auto max-w-3xl text-center mb-8">
               <h1 className="text-3xl font-bold tracking-tight mb-2">Serviços disponíveis</h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground mb-4">
                 Escolha um serviço e receba o código SMS em segundos
               </p>
+              <div className="relative max-w-md mx-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Pesquisar serviço..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
 
             {services.length === 0 ? (
@@ -287,7 +298,9 @@ const Store = () => {
               </div>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
-                {services.map((service) => (
+                {services
+                  .filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((service) => (
                   <Card key={service.id} className="flex flex-col hover:shadow-md transition-shadow border-border/60">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
