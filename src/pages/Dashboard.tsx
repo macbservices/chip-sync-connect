@@ -430,8 +430,9 @@ const Dashboard = () => {
   };
 
   const selectedLoc = locations.find((l) => l.id === selectedLocation);
-  const totalOnline = modems.filter((m) => getEffectiveStatus(m) === "online").length;
-  const totalChips = chips.filter((c) => c.status === "active").length;
+  const onlineModemIds = new Set(modems.filter((m) => getEffectiveStatus(m) === "online").map((m) => m.id));
+  const totalOnline = onlineModemIds.size;
+  const totalChips = chips.filter((c) => c.status === "active" && onlineModemIds.has(c.modem_id)).length;
   const exhaustedChips = chips.filter((c) => c.status === "exhausted").length;
 
   // Weekly summary for report
