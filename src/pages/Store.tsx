@@ -146,12 +146,24 @@ const Store = () => {
 
     setBuying(service.id);
     try {
-      const { error } = await supabase.rpc("purchase_service", { _service_id: service.id });
+      const { data: orderId, error } = await supabase.rpc("purchase_service", { _service_id: service.id });
       if (error) throw error;
 
-      toast.success("Pedido criado! O número será atribuído em instantes.");
+      toast.success("Pedido criado! O número foi atribuído.");
       await fetchAll(session.user.id);
       setTab("history");
+
+      // Auto-open SMS popup for the new order
+      if (orderId) {
+        const { data: newOrder } = await supabase
+          .from("orders")
+          .select("id, status, amount_cents, phone_number, chip_id, created_at, service:services(name, type)")
+          .eq("id", orderId)
+          .single();
+        if (newOrder && newOrder.chip_id) {
+          openSmsPopup(newOrder as any);
+        }
+      }
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar pedido");
     } finally {
