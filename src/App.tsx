@@ -15,6 +15,7 @@ import MyOrders from "./pages/MyOrders";
 import Admin from "./pages/Admin";
 import NoAccess from "./pages/NoAccess";
 import NotFound from "./pages/NotFound";
+import Terms from "./pages/Terms";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/escolher-perfil" element={<ChooseRole />} />
           <Route path="/sem-acesso" element={<NoAccess />} />
+          <Route path="/termos" element={<Terms />} />
 
           {/* Collaborator only: chipeira management + sales report */}
           <Route
