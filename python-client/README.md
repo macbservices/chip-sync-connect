@@ -1,4 +1,4 @@
-# GSM Gateway Client
+# Mac Chip - Cliente Local
 
 Aplicação Python que lê dados dos modems GSM via porta serial e envia para o dashboard web.
 
@@ -13,22 +13,33 @@ pip install -r requirements.txt
 
 1. Acesse o dashboard web e faça login
 2. Crie uma **Localização** e copie a **API Key** gerada
-3. Edite o arquivo `app_gsm.py` e cole a API Key na variável `API_KEY`
+3. Na primeira execução, o app pedirá a API Key e salvará no `config.json`
 
 ## Executar
 
 ```bash
-python app_gsm.py
+python mac-chip.py
 ```
 
-## Compilar para .exe
+## Compilar para .exe (com ícone)
 
 ```bash
-pip install pyinstaller
-pyinstaller --onefile app_gsm.py
+pip install pyinstaller pillow
 ```
 
-O executável será gerado em `dist/app_gsm.exe`.
+Primeiro converta o ícone PNG para ICO:
+```python
+from PIL import Image
+img = Image.open("icon.png")
+img.save("icon.ico", format="ICO", sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
+```
+
+Depois compile:
+```bash
+pyinstaller --onefile --icon=icon.ico --name="Mac Chip" mac-chip.py
+```
+
+O executável será gerado em `dist/Mac Chip.exe` com o ícone da Mac Chip.
 
 ## Como funciona
 
