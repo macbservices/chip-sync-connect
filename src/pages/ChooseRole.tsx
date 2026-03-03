@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Smartphone, RefreshCw } from "lucide-react";
+import macChipLogo from "@/assets/mac-chip-logo.png";
 
 const ChooseRole = () => {
   const [role, setRole] = useState<"customer" | "collaborator">("customer");
@@ -88,12 +89,10 @@ const ChooseRole = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Smartphone className="h-7 w-7 text-primary-foreground" />
-          </div>
+          <img src={macChipLogo} alt="Mac Chip" className="mx-auto mb-4 h-14 w-14 rounded-xl object-contain" />
           <CardTitle className="text-2xl">Escolha seu perfil</CardTitle>
           <CardDescription>
-            Como você pretende usar o CHIP SMS?
+            Como você pretende usar a Mac Chip?
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

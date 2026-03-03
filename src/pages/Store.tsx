@@ -12,6 +12,7 @@ import {
   Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import macChipLogo from "@/assets/mac-chip-logo.png";
 
 type Service = {
   id: string;
@@ -221,10 +222,8 @@ const Store = () => {
       <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Smartphone className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">CHIP SMS</span>
+            <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
+            <span className="text-xl font-bold">MAC CHIP</span>
           </div>
           <div className="flex items-center gap-2">
             {/* Balance */}
