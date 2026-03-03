@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import {
   Smartphone, Clock, Zap, ShoppingCart, LogOut, History,
-  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search
+  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search, Trash2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import macChipLogo from "@/assets/mac-chip-logo.png";
@@ -228,6 +228,16 @@ const Store = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
+  };
+
+  const deleteOrder = async (orderId: string) => {
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
+    if (error) {
+      toast.error("Erro ao excluir pedido");
+    } else {
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      toast.success("Pedido removido do histórico");
+    }
   };
 
   if (loading || roleLoading) {
@@ -457,6 +467,15 @@ const Store = () => {
                             Ver SMS
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => deleteOrder(order.id)}
+                          title="Excluir do histórico"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
