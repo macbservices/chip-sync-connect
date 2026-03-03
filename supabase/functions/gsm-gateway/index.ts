@@ -69,6 +69,64 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname.split("/").pop();
 
+    // GET /gsm-gateway/pending - return chips with active orders needing SMS read
+    if (req.method === "GET" && path === "pending") {
+      // Find modems belonging to this location
+      const { data: locationModems } = await supabase
+        .from("modems")
+        .select("id, port_name")
+        .eq("location_id", location.id);
+
+      if (!locationModems || locationModems.length === 0) {
+        return new Response(JSON.stringify({ pending: [] }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const modemIds = locationModems.map((m) => m.id);
+
+      // Find chips with active orders that have NO SMS yet after order creation
+      const { data: chipsWithOrders } = await supabase
+        .from("orders")
+        .select("id, chip_id, created_at, chips!inner(id, phone_number, modem_id)")
+        .in("status", ["active", "paid"])
+        .not("chip_id", "is", null);
+
+      const pending: Array<{ phone_number: string; port_name: string; order_created_at: string }> = [];
+
+      for (const order of chipsWithOrders || []) {
+        const chip = order.chips as unknown as { id: string; phone_number: string; modem_id: string };
+        if (!chip) continue;
+
+        // Only chips belonging to this location's modems
+        const modem = locationModems.find((m) => m.id === chip.modem_id);
+        if (!modem) continue;
+
+        // Check if SMS already received for this order
+        const { data: existingSms } = await supabase
+          .from("sms_logs")
+          .select("id")
+          .eq("chip_id", chip.id)
+          .eq("direction", "incoming")
+          .gte("received_at", order.created_at)
+          .limit(1);
+
+        if (!existingSms || existingSms.length === 0) {
+          pending.push({
+            phone_number: chip.phone_number,
+            port_name: modem.port_name,
+            order_created_at: order.created_at,
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({ pending }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // POST /gsm-gateway/sms - receive SMS from Python client
     if (req.method === "POST" && path === "sms") {
       const contentLength = req.headers.get("content-length");
