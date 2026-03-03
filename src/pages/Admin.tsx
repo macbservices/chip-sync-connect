@@ -442,6 +442,22 @@ const Admin = () => {
     fetchAll();
   };
 
+  const resetAllChipActivations = async () => {
+    if (!confirm("⚠️ ATENÇÃO: Isso vai zerar TODAS as ativações de serviços em TODOS os chips. Tem certeza?")) return;
+    if (!confirm("Última confirmação: essa ação é irreversível. Continuar?")) return;
+    const { error } = await supabase.rpc("admin_reset_all_chip_activations");
+    if (error) { toast.error("Erro ao zerar ativações: " + error.message); return; }
+    toast.success("Todas as ativações de chips foram zeradas!");
+  };
+
+  const deleteOrder = async (orderId: string) => {
+    if (!confirm("Tem certeza que deseja apagar este pedido do histórico?")) return;
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
+    if (error) { toast.error("Erro ao apagar pedido: " + error.message); return; }
+    toast.success("Pedido removido do histórico!");
+    fetchAll();
+  };
+
   const completeOrder = async (id: string) => {
     await supabase.from("orders").update({ status: "completed" }).eq("id", id);
     toast.success("Pedido concluído!");
@@ -598,9 +614,14 @@ const Admin = () => {
                 <CardTitle>Gerenciar Serviços</CardTitle>
                 <CardDescription>Adicione, edite ou remova serviços da loja</CardDescription>
               </div>
-              <Button size="sm" onClick={() => openServiceDialog()}>
-                <Plus className="mr-2 h-4 w-4" /> Novo Serviço
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="destructive" onClick={resetAllChipActivations}>
+                  <RotateCcw className="mr-2 h-4 w-4" /> Zerar Ativações
+                </Button>
+                <Button size="sm" onClick={() => openServiceDialog()}>
+                  <Plus className="mr-2 h-4 w-4" /> Novo Serviço
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {services.length === 0 ? (
@@ -735,6 +756,14 @@ const Admin = () => {
                                 </Button>
                               </>
                             )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Apagar do histórico"
+                              onClick={() => deleteOrder(order.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-muted-foreground" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>

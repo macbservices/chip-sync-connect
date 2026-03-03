@@ -507,6 +507,7 @@ export type Database = {
         Args: { _order_id: string }
         Returns: undefined
       }
+      admin_reset_all_chip_activations: { Args: never; Returns: undefined }
       approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
       auto_cancel_stale_orders: { Args: never; Returns: number }
       cancel_order_refund: { Args: { _order_id: string }; Returns: undefined }
