@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
@@ -60,6 +60,12 @@ type Chip = {
   status: string;
 };
 
+type ChipStats = {
+  totalActive: number;
+  totalExhausted: number;
+  totalOnline: number;
+};
+
 type UserEntry = {
   id: string;
   email: string;
@@ -78,6 +84,7 @@ const Admin = () => {
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
   const [chips, setChips] = useState<Chip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chipStats, setChipStats] = useState<ChipStats>({ totalActive: 0, totalExhausted: 0, totalOnline: 0 });
 
   // Service form
   const [svcDialogOpen, setSvcDialogOpen] = useState(false);
@@ -169,17 +176,26 @@ const Admin = () => {
       }
     });
 
-    const [{ data: svcData }, { data: ordData }, { data: rechData }, { data: chipData }] = await Promise.all([
+    const [{ data: svcData }, { data: ordData }, { data: rechData }, { data: chipData }, { data: allChipsData }, { data: onlineChipsData }] = await Promise.all([
       supabase.from("services").select("*").order("created_at", { ascending: false }),
       supabase.from("orders").select("*, service:services(name, type)").order("created_at", { ascending: false }) as any,
       supabase.from("recharge_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("chips").select("id, phone_number, operator, status").in("status", ["active"]),
+      supabase.from("chips").select("id, status"),
+      supabase.from("chips").select("id, status, modem_id").eq("status", "active"),
     ]);
 
     setServices(svcData || []);
     setOrders((ordData as any) || []);
     setRecharges((rechData as any) || []);
     setChips((chipData as any) || []);
+
+    // Chip stats
+    const allChips = allChipsData || [];
+    const activeChips = allChips.filter((c: any) => c.status === "active").length;
+    const exhaustedChips = allChips.filter((c: any) => c.status === "exhausted").length;
+    setChipStats({ totalActive: activeChips, totalExhausted: exhaustedChips, totalOnline: (onlineChipsData || []).length });
+
     setLoading(false);
   };
 
@@ -622,6 +638,37 @@ const Admin = () => {
       </header>
 
       <main className="flex-1 container py-6 space-y-6">
+
+        {/* Chip Stats Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
+              <Smartphone className="h-5 w-5 text-accent" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{chipStats.totalActive}</p>
+              <p className="text-xs text-muted-foreground">Chips Ativos</p>
+            </div>
+          </Card>
+          <Card className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{chipStats.totalExhausted}</p>
+              <p className="text-xs text-muted-foreground">Chips Esgotados</p>
+            </div>
+          </Card>
+          <Card className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+              <TrendingUp className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{chipStats.totalActive + chipStats.totalExhausted}</p>
+              <p className="text-xs text-muted-foreground">Total de Chips</p>
+            </div>
+          </Card>
+        </div>
 
         {/* ====== SERVICES TAB ====== */}
         {tab === "services" && (
