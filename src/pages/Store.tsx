@@ -554,8 +554,8 @@ const Store = () => {
           </div>
 
           {activeSmsOrder?.status === "completed" ? (
-            <div className="rounded-lg border-2 border-green-500/30 bg-green-500/10 px-4 py-3 text-center">
-              <p className="text-sm font-semibold text-green-700 dark:text-green-400">
+            <div className="rounded-lg border-2 border-accent/30 bg-accent/10 px-4 py-3 text-center">
+              <p className="text-sm font-semibold text-accent-foreground">
                 ✅ SMS recebido — Pedido concluído!
               </p>
               <p className="text-xs text-muted-foreground mt-1">

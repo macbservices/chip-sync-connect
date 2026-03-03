@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Smartphone, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 type Order = {
   id: string;
@@ -45,10 +45,10 @@ const MyOrders = () => {
   const handleDelete = async (orderId: string) => {
     const { error } = await supabase.from("orders").delete().eq("id", orderId);
     if (error) {
-      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+      toast.error("Erro ao excluir: " + error.message);
     } else {
       setOrders((prev) => prev.filter((o) => o.id !== orderId));
-      toast({ title: "Pedido removido do histórico" });
+      toast.success("Pedido removido do histórico");
     }
   };
 
