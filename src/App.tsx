@@ -16,6 +16,8 @@ import Admin from "./pages/Admin";
 import NoAccess from "./pages/NoAccess";
 import NotFound from "./pages/NotFound";
 import Terms from "./pages/Terms";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Route path="/escolher-perfil" element={<ChooseRole />} />
           <Route path="/sem-acesso" element={<NoAccess />} />
           <Route path="/termos" element={<Terms />} />
+          <Route path="/esqueci-senha" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Collaborator only: chipeira management + sales report */}
           <Route
