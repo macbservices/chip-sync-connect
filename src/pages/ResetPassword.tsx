@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import macChipLogo from "@/assets/mac-chip-logo.png";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -49,7 +50,10 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 relative">
+      <div className="absolute top-4 right-4">
+        <DarkModeToggle />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <img src={macChipLogo} alt="Mac Chip" className="mx-auto mb-4 h-14 w-14 rounded-xl object-contain" />
