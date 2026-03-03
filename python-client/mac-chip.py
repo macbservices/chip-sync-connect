@@ -12,6 +12,7 @@ import json
 import re
 import sys
 import os
+import threading
 from datetime import datetime, timezone, timedelta
 
 # ============================================================
@@ -19,12 +20,17 @@ from datetime import datetime, timezone, timedelta
 # ============================================================
 API_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway"
 SMS_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway/sms"
+PENDING_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway/pending"
 CONFIG_FILE = "config.json"
-INTERVALO_SYNC = 5
+INTERVALO_SYNC = 30  # Full sync every 30s
+INTERVALO_PENDING = 2  # Check for pending SMS every 2s
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1c2JueHN6emR0d2dpYmxpYmh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMzI4NTEsImV4cCI6MjA4NjkwODg1MX0.PTQQOeQEk3xVjF5Ry4BvltGRoJTMtPNxUODe5tTFw8g"
 BAUDRATE = 115200
 TIMEOUT_SERIAL = 3
 # ============================================================
+
+# Lock para acesso serial - impede que sync e pending leiam o mesmo modem ao mesmo tempo
+serial_lock = threading.Lock()
 
 
 def carregar_config():
@@ -98,7 +104,7 @@ def obter_api_key():
 
 
 def enviar_at(porta_serial, comando, espera=1, espera_final=0.5):
-    """Envia um comando AT e retorna a resposta completa (inclusive quando chega em partes)."""
+    """Envia um comando AT e retorna a resposta completa."""
     try:
         porta_serial.reset_input_buffer()
         porta_serial.write((comando + "\r\n").encode())
@@ -153,16 +159,13 @@ def extrair_iccid(resposta):
 
 
 def parse_sms_timestamp(modem_ts):
-    """Converte timestamp do modem (ex: 26/03/03,14:22:11-12) para ISO UTC.
-    O sufixo +/-NN representa offset em quartos de hora (15 min).
-    """
+    """Converte timestamp do modem (ex: 26/03/03,14:22:11-12) para ISO UTC."""
     if not modem_ts or not isinstance(modem_ts, str):
         return None
     try:
         raw = modem_ts.strip()
         match = re.match(r"^(\d{2}/\d{2}/\d{2},\d{2}:\d{2}:\d{2})([+-])(\d{2})$", raw)
         if not match:
-            # Fallback sem offset explícito
             dt = datetime.strptime(re.split(r"[+-]", raw)[0], "%y/%m/%d,%H:%M:%S")
             return dt.replace(tzinfo=timezone.utc).isoformat()
 
@@ -184,14 +187,12 @@ def descobrir_portas_gsm():
 
 
 def ler_sms(porta_serial, phone_number):
-    """Lê mensagens SMS do modem via AT+CMGL de forma tolerante a variações de firmware."""
+    """Lê mensagens SMS do modem via AT+CMGL."""
     mensagens = []
     try:
-        # Configura modem para leitura em texto e memória SIM
         enviar_at(porta_serial, "AT+CMGF=1", 0.5)
         enviar_at(porta_serial, 'AT+CPMS="SM","SM","SM"', 0.5)
 
-        # Lê todas as mensagens e filtra no parse
         resp = enviar_at(porta_serial, 'AT+CMGL="ALL"', 3)
 
         if not resp or "+CMGL:" not in resp:
@@ -217,7 +218,6 @@ def ler_sms(porta_serial, phone_number):
             sender = quoted[1] if len(quoted) >= 2 else ""
             timestamp = quoted[-1] if len(quoted) >= 3 else ""
 
-            # Captura corpo da mensagem até próximo cabeçalho +CMGL ou OK
             corpo_linhas = []
             j = i + 1
             while j < len(linhas):
@@ -229,7 +229,6 @@ def ler_sms(porta_serial, phone_number):
 
             msg_body = "\n".join(corpo_linhas).strip()
 
-            # Aceita mensagens recebidas (REC UNREAD/REC READ) e também fallback quando status vier vazio
             status_upper = status.upper()
             is_incoming = ("REC" in status_upper) or (status == "")
 
@@ -247,11 +246,10 @@ def ler_sms(porta_serial, phone_number):
 
             i = max(j, i + 1)
 
-        # Delete read messages to avoid re-sending
+        # Delete read messages
         for msg in mensagens:
             enviar_at(porta_serial, f"AT+CMGD={msg['index']}", 0.5)
 
-        # Remove index key before sending
         for msg in mensagens:
             del msg["index"]
 
@@ -261,10 +259,38 @@ def ler_sms(porta_serial, phone_number):
     return mensagens
 
 
+def ler_sms_de_porta(porta_nome, phone_number):
+    """Abre a porta serial, lê SMS e fecha. Thread-safe via serial_lock."""
+    with serial_lock:
+        portas_atuais = set(descobrir_portas_gsm())
+        if porta_nome not in portas_atuais:
+            return []
+
+        ser = None
+        try:
+            ser = serial.Serial(porta_nome, BAUDRATE, timeout=TIMEOUT_SERIAL)
+            time.sleep(0.5)
+            resp = enviar_at(ser, "AT", 0.5)
+            if "OK" not in resp:
+                return []
+            sms = ler_sms(ser, phone_number)
+            ser.close()
+            return sms
+        except Exception as e:
+            print(f"  [ERRO] Leitura SMS rápida {porta_nome}: {e}")
+            return []
+        finally:
+            try:
+                if ser and ser.is_open:
+                    ser.close()
+            except Exception:
+                pass
+
+
 def coletar_dados_modem(porta_nome):
+    """Coleta dados completos do modem (usado no sync completo)."""
     print(f"\n📡 Lendo modem em {porta_nome}...")
 
-    # Evita tentar abrir porta que sumiu entre a varredura e a leitura
     portas_atuais = set(descobrir_portas_gsm())
     if porta_nome not in portas_atuais:
         print(f"  [AVISO] Porta {porta_nome} não está mais disponível")
@@ -272,7 +298,6 @@ def coletar_dados_modem(porta_nome):
 
     ser = None
     try:
-        # Uma tentativa de reabertura para casos de reconexão rápida USB
         for tentativa in range(2):
             try:
                 ser = serial.Serial(porta_nome, BAUDRATE, timeout=TIMEOUT_SERIAL)
@@ -317,12 +342,11 @@ def coletar_dados_modem(porta_nome):
         if not iccid:
             iccid = extrair_iccid(enviar_at(ser, "AT+ICCID"))
 
-        # Determine phone number for SMS reading
         phone = numero
         if not phone and iccid:
             phone = iccid[:11]
 
-        # Read SMS messages
+        # Read SMS during full sync too
         sms_mensagens = []
         if phone:
             sms_mensagens = ler_sms(ser, phone)
@@ -416,17 +440,74 @@ def enviar_sms(api_key, mensagens):
         print(f"❌ Erro SMS: {e}")
 
 
+def consultar_pending(api_key):
+    """Consulta o servidor por chips com pedidos ativos aguardando SMS."""
+    try:
+        resp = requests.get(
+            PENDING_URL,
+            headers={
+                "x-api-key": api_key,
+                "apikey": SUPABASE_ANON_KEY,
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("pending", [])
+        return []
+    except Exception:
+        return []
+
+
+def normalizar_telefone(phone):
+    """Remove tudo que não é dígito para comparação."""
+    return re.sub(r"\D", "", phone or "")
+
+
+def thread_pending_sms(api_key):
+    """Thread dedicada: consulta pedidos pendentes a cada 2s e lê SMS sob demanda."""
+    print("🔔 Thread de SMS sob demanda iniciada")
+    while True:
+        try:
+            pending = consultar_pending(api_key)
+            if pending:
+                print(f"\n⚡ {len(pending)} chip(s) com pedido ativo aguardando SMS!")
+                for item in pending:
+                    port_name = item.get("port_name")
+                    phone = item.get("phone_number")
+                    if not port_name or not phone:
+                        continue
+
+                    print(f"  🔍 Lendo SMS do chip {phone} na porta {port_name}...")
+                    sms = ler_sms_de_porta(port_name, phone)
+                    if sms:
+                        enviar_sms(api_key, sms)
+                    else:
+                        print(f"  📭 Nenhum SMS novo no chip {phone}")
+
+            time.sleep(INTERVALO_PENDING)
+
+        except Exception as e:
+            print(f"  [ERRO] Thread pending: {e}")
+            time.sleep(INTERVALO_PENDING)
+
+
 def main():
     print("=" * 50)
-    print("   Mac Chip - Cliente Local v2.0")
+    print("   Mac Chip - Cliente Local v3.0")
     print("=" * 50)
 
     api_key = obter_api_key()
 
     print(f"\n🌐 Servidor: {API_URL}")
-    print(f"⏱️  Intervalo: {INTERVALO_SYNC}s")
+    print(f"⏱️  Sync completo: {INTERVALO_SYNC}s | SMS sob demanda: {INTERVALO_PENDING}s")
     print("\nPressione Ctrl+C para encerrar.\n")
 
+    # Inicia thread de SMS sob demanda
+    t = threading.Thread(target=thread_pending_sms, args=(api_key,), daemon=True)
+    t.start()
+
+    # Loop principal: sync completo (modems + chips)
     while True:
         try:
             portas = descobrir_portas_gsm()
@@ -435,16 +516,16 @@ def main():
             else:
                 print(f"\n📋 {len(portas)} porta(s): {', '.join(portas)}")
                 modems = []
-                for p in portas:
-                    result = coletar_dados_modem(p)
-                    modem_data, sms_mensagens = result
+                with serial_lock:
+                    for p in portas:
+                        result = coletar_dados_modem(p)
+                        modem_data, sms_mensagens = result
 
-                    if modem_data:
-                        modems.append(modem_data)
+                        if modem_data:
+                            modems.append(modem_data)
 
-                    # Envio imediato de SMS por modem para reduzir latência
-                    if sms_mensagens:
-                        enviar_sms(api_key, sms_mensagens)
+                        if sms_mensagens:
+                            enviar_sms(api_key, sms_mensagens)
 
                 if modems:
                     sincronizar(api_key, modems)
@@ -452,7 +533,7 @@ def main():
                 if not modems:
                     print("⚠️  Nenhum modem GSM respondeu")
 
-            print(f"💤 Próximo sync em {INTERVALO_SYNC}s...")
+            print(f"💤 Próximo sync completo em {INTERVALO_SYNC}s...")
             time.sleep(INTERVALO_SYNC)
 
         except KeyboardInterrupt:
