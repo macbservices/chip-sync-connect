@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import {
   Smartphone, Clock, Zap, ShoppingCart, LogOut, History,
-  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search, Trash2
+  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search, Trash2, LifeBuoy
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import macChipLogo from "@/assets/mac-chip-logo.png";
@@ -274,6 +274,10 @@ const Store = () => {
             >
               <History className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Histórico</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/suporte")}>
+              <LifeBuoy className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">Suporte</span>
             </Button>
             {isAdmin && (
               <Button variant="ghost" size="sm" onClick={() => navigate("/admin")}>
