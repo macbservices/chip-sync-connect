@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,68 +6,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Smartphone, ArrowLeft, QrCode as QrCodeIcon, Copy, Upload, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-
-const PIX_KEY = "claudiorevestres@gmail.com";
-const PIX_NAME = "Claudio Revestres";
-const PIX_CITY = "SAO PAULO";
-
-// Generates a simplified PIX copy-paste payload (EMV format)
-const generatePixPayload = (amount: string) => {
-  const pad = (id: string, value: string) => {
-    const len = value.length.toString().padStart(2, "0");
-    return `${id}${len}${value}`;
-  };
-
-  const gui = pad("00", "br.gov.bcb.pix");
-  const key = pad("01", PIX_KEY);
-  const merchantAccount = pad("26", gui + key);
-
-  const mcc = pad("52", "0000");
-  const currency = pad("53", "986");
-
-  let amountField = "";
-  if (amount && parseFloat(amount) > 0) {
-    amountField = pad("54", parseFloat(amount).toFixed(2));
-  }
-
-  const countryCode = pad("58", "BR");
-  const merchantName = pad("59", PIX_NAME);
-  const merchantCity = pad("60", PIX_CITY);
-
-  const txid = pad("05", "***");
-  const additionalData = pad("62", txid);
-
-  const payloadWithoutCRC = pad("00", "01") + merchantAccount + mcc + currency + amountField + countryCode + merchantName + merchantCity + additionalData + "6304";
-
-  // CRC16-CCITT calculation
-  const crc16 = (str: string) => {
-    let crc = 0xFFFF;
-    for (let i = 0; i < str.length; i++) {
-      crc ^= str.charCodeAt(i) << 8;
-      for (let j = 0; j < 8; j++) {
-        if (crc & 0x8000) crc = (crc << 1) ^ 0x1021;
-        else crc <<= 1;
-      }
-      crc &= 0xFFFF;
-    }
-    return crc.toString(16).toUpperCase().padStart(4, "0");
-  };
-
-  return payloadWithoutCRC + crc16(payloadWithoutCRC);
-};
+import { Smartphone, ArrowLeft, QrCode as QrCodeIcon, Copy, CheckCircle2, RefreshCw, XCircle, Loader2, Clock } from "lucide-react";
 
 const Recharge = () => {
   const navigate = useNavigate();
   const [amount, setAmount] = useState("");
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [done, setDone] = useState(false);
-  const [autoApproved, setAutoApproved] = useState(false);
-  const [verifyFailed, setVerifyFailed] = useState<string | null>(null);
   const [balance, setBalance] = useState(0);
+
+  // Charge state
+  const [creating, setCreating] = useState(false);
+  const [charge, setCharge] = useState<{
+    recharge_id: string;
+    txid: string;
+    pix_copy_paste: string;
+    qr_code_image: string;
+    expires_at: string;
+  } | null>(null);
+
+  // Payment polling
+  const [checking, setChecking] = useState(false);
+  const [paid, setPaid] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -75,99 +34,76 @@ const Recharge = () => {
       supabase.from("profiles").select("balance_cents").eq("user_id", data.session.user.id).single()
         .then(({ data: p }) => setBalance(p?.balance_cents ?? 0));
     });
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, []);
 
   const formatPrice = (cents: number) =>
     (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const handleSubmit = async () => {
+  const handleCreateCharge = async () => {
     if (!amount || parseFloat(amount) < 5) {
       toast.error("Valor mínimo de recarga é R$ 5,00");
       return;
     }
-    if (!proofFile) {
-      toast.error("Anexe o comprovante PIX para verificação automática");
-      return;
-    }
-    setSubmitting(true);
-    setVerifyFailed(null);
+    setCreating(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
-
       const amountCents = Math.round(parseFloat(amount) * 100);
 
-      // Upload proof
-      const ext = proofFile.name.split(".").pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("pix-proofs")
-        .upload(path, proofFile);
-      if (uploadError) throw uploadError;
-
-      // Create recharge request
-      const { data: rechargeData, error } = await supabase.from("recharge_requests").insert({
-        user_id: user.id,
-        amount_cents: amountCents,
-        pix_proof_url: path,
-      }).select("id").single();
-
-      if (error) throw error;
-
-      // Now verify with AI
-      setSubmitting(false);
-      setVerifying(true);
-
-      const { data: verifyResult, error: verifyError } = await supabase.functions.invoke("verify-pix", {
-        body: { recharge_id: rechargeData.id },
+      const { data, error } = await supabase.functions.invoke("efi-pix", {
+        body: { action: "create_charge", amount_cents: amountCents },
       });
 
-      if (verifyError) {
-        console.error("Verify error:", verifyError);
-        setVerifyFailed("Não foi possível verificar automaticamente. O admin será notificado.");
-        setDone(true);
-        setVerifying(false);
-        return;
-      }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      if (verifyResult?.approved) {
-        setAutoApproved(true);
-        setDone(true);
-      } else {
-        setVerifyFailed(verifyResult?.reason || "O comprovante não pôde ser aprovado automaticamente.");
-        setDone(true);
-      }
+      setCharge(data);
+      toast.success("Cobrança PIX gerada! Escaneie o QR Code para pagar.");
+
+      // Start polling for payment every 5 seconds
+      startPolling(data.recharge_id);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao enviar solicitação");
+      toast.error(err.message || "Erro ao gerar cobrança PIX");
     } finally {
-      setSubmitting(false);
-      setVerifying(false);
+      setCreating(false);
     }
   };
 
-  if (done) {
+  const startPolling = (rechargeId: string) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    const poll = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("efi-pix", {
+          body: { action: "check_payment", recharge_id: rechargeId },
+        });
+
+        if (!error && data?.paid) {
+          setPaid(true);
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+      } catch {
+        // silent
+      }
+    };
+
+    // First check after 5s, then every 5s
+    pollRef.current = setInterval(poll, 5000);
+  };
+
+  // Payment confirmed screen
+  if (paid) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full shadow-lg">
           <CardContent className="p-10 text-center space-y-5">
-            {autoApproved ? (
-              <>
-                <CheckCircle2 className="mx-auto h-16 w-16 text-accent" />
-                <h2 className="text-2xl font-bold">Saldo creditado!</h2>
-                <p className="text-muted-foreground">
-                  Seu comprovante foi verificado automaticamente e o saldo já foi adicionado à sua conta.
-                </p>
-              </>
-            ) : (
-              <>
-                <XCircle className="mx-auto h-16 w-16 text-muted-foreground" />
-                <h2 className="text-2xl font-bold">Verificação pendente</h2>
-                <p className="text-muted-foreground">
-                  {verifyFailed || "O comprovante será analisado pelo administrador. Seu saldo será creditado após a confirmação."}
-                </p>
-              </>
-            )}
+            <CheckCircle2 className="mx-auto h-16 w-16 text-accent" />
+            <h2 className="text-2xl font-bold">Pagamento confirmado!</h2>
+            <p className="text-muted-foreground">
+              Seu PIX foi recebido e o saldo já foi creditado automaticamente na sua conta.
+            </p>
             <Button className="w-full" size="lg" onClick={() => navigate("/store")}>
               Voltar à loja
             </Button>
@@ -177,6 +113,97 @@ const Recharge = () => {
     );
   }
 
+  // Charge created - show QR Code
+  if (charge) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <header className="border-b bg-card sticky top-0 z-10">
+          <div className="container flex h-16 items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => { if (pollRef.current) clearInterval(pollRef.current); setCharge(null); }}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+                <Smartphone className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <span className="text-xl font-bold">Pagamento PIX</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 container py-8">
+          <div className="mx-auto max-w-md space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader className="text-center">
+                <CardTitle className="flex items-center justify-center gap-2">
+                  <QrCodeIcon className="h-5 w-5 text-primary" />
+                  Pague {formatPrice(Math.round(parseFloat(amount) * 100))}
+                </CardTitle>
+                <CardDescription>
+                  Escaneie o QR Code ou copie o código PIX abaixo
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* QR Code */}
+                {charge.qr_code_image && (
+                  <div className="flex justify-center">
+                    <div className="bg-white p-3 rounded-lg shadow-sm">
+                      <img
+                        src={`data:image/png;base64,${charge.qr_code_image}`}
+                        alt="QR Code PIX"
+                        className="w-52 h-52"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Copy Paste */}
+                {charge.pix_copy_paste && (
+                  <div className="space-y-2">
+                    <Label className="font-medium text-sm">PIX Copia e Cola</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={charge.pix_copy_paste}
+                        className="text-xs font-mono"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(charge.pix_copy_paste);
+                          toast.success("Código PIX copiado!");
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status */}
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
+                  <RefreshCw className="mx-auto h-6 w-6 animate-spin text-primary" />
+                  <p className="text-sm font-medium">Aguardando pagamento...</p>
+                  <p className="text-xs text-muted-foreground">
+                    O saldo será creditado automaticamente após a confirmação do PIX.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center">
+                  <Clock className="h-3 w-3" />
+                  <span>Expira em 1 hora</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Initial form
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b bg-card sticky top-0 z-10">
@@ -208,118 +235,51 @@ const Recharge = () => {
             </CardContent>
           </Card>
 
-          {/* Verifying overlay */}
-          {verifying && (
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="p-8 text-center space-y-4">
-                <RefreshCw className="mx-auto h-10 w-10 animate-spin text-primary" />
-                <h3 className="text-lg font-semibold">Verificando comprovante...</h3>
-                <p className="text-sm text-muted-foreground">
-                  A IA está analisando seu comprovante PIX. Isso pode levar alguns segundos.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          {/* Amount Card */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCodeIcon className="h-5 w-5 text-primary" />
+                Recarga via PIX
+              </CardTitle>
+              <CardDescription>
+                Informe o valor e gere a cobrança PIX automaticamente. O saldo é creditado instantaneamente após o pagamento!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="amount" className="font-medium">Valor da recarga (R$)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  min="5"
+                  step="1"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="Ex: 50"
+                  className="h-11 text-lg"
+                />
+                <p className="text-xs text-muted-foreground">Valor mínimo: R$ 5,00</p>
+              </div>
 
-          {/* PIX Payment Card */}
-          {!verifying && (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <QrCodeIcon className="h-5 w-5 text-primary" />
-                  Pagamento via PIX
-                </CardTitle>
-                <CardDescription>
-                  Envie o PIX para a chave abaixo e anexe o comprovante. A verificação é automática!
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {/* Amount - FIRST so QR code appears after */}
-                <div className="space-y-2">
-                  <Label htmlFor="amount" className="font-medium">Valor da recarga (R$)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    min="5"
-                    step="1"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="Ex: 50"
-                    className="h-11 text-lg"
-                  />
-                  <p className="text-xs text-muted-foreground">Valor mínimo: R$ 5,00</p>
-                </div>
+              <Button
+                onClick={handleCreateCharge}
+                disabled={creating || !amount || parseFloat(amount) < 5}
+                className="w-full"
+                size="lg"
+              >
+                {creating ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Gerando cobrança PIX...</>
+                ) : (
+                  <><QrCodeIcon className="mr-2 h-4 w-4" />Gerar QR Code PIX</>
+                )}
+              </Button>
 
-                {/* PIX Key + QR Code */}
-                <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-5 text-center space-y-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chave PIX (E-mail)</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <code className="text-sm font-mono font-semibold text-foreground break-all">{PIX_KEY}</code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 h-8 w-8"
-                      onClick={() => {
-                        navigator.clipboard.writeText(PIX_KEY);
-                        toast.success("Chave PIX copiada!");
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {amount && parseFloat(amount) >= 5 && (
-                    <div className="space-y-2 pt-2">
-                      <p className="text-xs text-muted-foreground">Escaneie o QR Code para pagar <strong>{parseFloat(amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>:</p>
-                      <div className="inline-block bg-white p-3 rounded-lg shadow-sm">
-                        <QRCodeSVG value={generatePixPayload(amount)} size={200} />
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatePixPayload(amount));
-                          toast.success("Código PIX Copia e Cola copiado!");
-                        }}
-                      >
-                        <Copy className="mr-2 h-3 w-3" /> Copiar código Pix Copia e Cola
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Proof */}
-                <div className="space-y-2">
-                  <Label htmlFor="proof" className="font-medium">Comprovante do PIX *</Label>
-                  <Input
-                    id="proof"
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-                    className="cursor-pointer"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    📸 Tire uma foto ou capture a tela do comprovante PIX
-                  </p>
-                </div>
-
-                <Button
-                  onClick={handleSubmit}
-                  disabled={submitting || !amount || !proofFile}
-                  className="w-full"
-                  size="lg"
-                >
-                  {submitting ? "Enviando..." : (
-                    <><Upload className="mr-2 h-4 w-4" />Enviar e Verificar Automaticamente</>
-                  )}
-                </Button>
-
-                <p className="text-xs text-center text-muted-foreground">
-                  A IA verificará o comprovante automaticamente. Se não for possível, o administrador analisará manualmente.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+              <p className="text-xs text-center text-muted-foreground">
+                💡 O pagamento é verificado automaticamente. Sem necessidade de enviar comprovante!
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

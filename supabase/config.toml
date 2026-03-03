@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.verify-pix]
 verify_jwt = false
+
+[functions.efi-pix]
+verify_jwt = false
