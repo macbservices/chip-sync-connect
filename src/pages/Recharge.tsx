@@ -6,13 +6,62 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Smartphone, ArrowLeft, QrCode as QrCodeIcon, Copy,
   CheckCircle2, Loader2, Upload, Mail
 } from "lucide-react";
 
-const PIX_KEY = "aylaluanagoncalves@gmail.com";
+const PIX_KEY = "claudiorevestres@gmail.com";
 const PIX_KEY_TYPE = "E-mail";
+const PIX_MERCHANT_NAME = "MAC CHIP";
+const PIX_MERCHANT_CITY = "SAO PAULO";
+
+function buildPixPayload(key: string, merchantName: string, city: string, amount: number, txid = "***"): string {
+  const formatField = (id: string, value: string) => {
+    const len = value.length.toString().padStart(2, "0");
+    return `${id}${len}${value}`;
+  };
+
+  const gui = formatField("00", "br.gov.bcb.pix");
+  const chave = formatField("01", key);
+  const merchantAccountInfo = formatField("26", gui + chave);
+
+  const amountStr = amount > 0 ? formatField("54", amount.toFixed(2)) : "";
+  const txId = formatField("05", txid);
+  const additionalData = formatField("62", txId);
+
+  let payload =
+    formatField("00", "01") +           // Payload Format Indicator
+    formatField("01", "12") +            // Point of Initiation (dynamic = 12)
+    merchantAccountInfo +
+    formatField("52", "0000") +          // Merchant Category Code
+    formatField("53", "986") +           // Currency (BRL)
+    amountStr +
+    formatField("58", "BR") +            // Country
+    formatField("59", merchantName.substring(0, 25)) +
+    formatField("60", city.substring(0, 15)) +
+    additionalData;
+
+  // CRC16 placeholder
+  payload += "6304";
+
+  // Calculate CRC16 (CCITT-FALSE)
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      if (crc & 0x8000) {
+        crc = (crc << 1) ^ 0x1021;
+      } else {
+        crc <<= 1;
+      }
+      crc &= 0xFFFF;
+    }
+  }
+
+  return payload + crc.toString(16).toUpperCase().padStart(4, "0");
+}
 
 type Step = "amount" | "pay" | "uploading" | "done";
 
@@ -135,6 +184,8 @@ const Recharge = () => {
   }
 
   if (step === "pay") {
+    const pixPayload = buildPixPayload(PIX_KEY, PIX_MERCHANT_NAME, PIX_MERCHANT_CITY, amountCents / 100);
+
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <header className="border-b bg-card sticky top-0 z-10">
@@ -160,16 +211,39 @@ const Recharge = () => {
               </CardContent>
             </Card>
 
+            {/* QR Code */}
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-primary" />
-                  1. Faça o PIX para a chave abaixo
+                  <QrCodeIcon className="h-4 w-4 text-primary" />
+                  1. Escaneie o QR Code ou copie o código
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
+                <div className="flex justify-center p-4 bg-white rounded-lg">
+                  <QRCodeSVG value={pixPayload} size={220} />
+                </div>
+
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">{PIX_KEY_TYPE}</Label>
+                  <Label className="text-xs text-muted-foreground">Pix Copia e Cola</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={pixPayload} className="font-mono text-xs" />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pixPayload);
+                        toast.success("Código PIX copiado!");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Chave PIX ({PIX_KEY_TYPE})</Label>
                   <div className="flex gap-2">
                     <Input readOnly value={PIX_KEY} className="font-mono text-sm" />
                     <Button
@@ -185,12 +259,14 @@ const Recharge = () => {
                     </Button>
                   </div>
                 </div>
+
                 <p className="text-xs text-muted-foreground">
-                  ⚠️ Envie exatamente <strong>{formatPrice(amountCents)}</strong>.
+                  ⚠️ O valor de <strong>{formatPrice(amountCents)}</strong> já está embutido no QR Code.
                 </p>
               </CardContent>
             </Card>
 
+            {/* Upload Proof */}
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
