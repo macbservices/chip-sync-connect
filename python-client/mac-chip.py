@@ -23,14 +23,23 @@ SMS_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway/sms
 PENDING_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway/pending"
 CONFIG_FILE = "config.json"
 INTERVALO_SYNC = 30  # Full sync every 30s
-INTERVALO_PENDING = 2  # Check for pending SMS every 2s
+INTERVALO_PENDING = 1  # Check for pending SMS every 1s (was 2s)
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1c2JueHN6emR0d2dpYmxpYmh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMzI4NTEsImV4cCI6MjA4NjkwODg1MX0.PTQQOeQEk3xVjF5Ry4BvltGRoJTMtPNxUODe5tTFw8g"
 BAUDRATE = 115200
 TIMEOUT_SERIAL = 3
 # ============================================================
 
-# Lock para acesso serial - impede que sync e pending leiam o mesmo modem ao mesmo tempo
-serial_lock = threading.Lock()
+# Lock POR PORTA - permite ler portas diferentes em paralelo
+port_locks = {}
+port_locks_master = threading.Lock()
+
+
+def get_port_lock(port_name):
+    """Retorna um lock exclusivo para cada porta serial."""
+    with port_locks_master:
+        if port_name not in port_locks:
+            port_locks[port_name] = threading.Lock()
+        return port_locks[port_name]
 
 
 def carregar_config():
@@ -260,8 +269,12 @@ def ler_sms(porta_serial, phone_number):
 
 
 def ler_sms_de_porta(porta_nome, phone_number):
-    """Abre a porta serial, lê SMS e fecha. Thread-safe via serial_lock."""
-    with serial_lock:
+    """Abre a porta serial, lê SMS e fecha. Thread-safe via lock por porta."""
+    lock = get_port_lock(porta_nome)
+    if not lock.acquire(blocking=False):
+        # Porta ocupada pelo sync, pular
+        return []
+    try:
         portas_atuais = set(descobrir_portas_gsm())
         if porta_nome not in portas_atuais:
             return []
@@ -285,6 +298,8 @@ def ler_sms_de_porta(porta_nome, phone_number):
                     ser.close()
             except Exception:
                 pass
+    finally:
+        lock.release()
 
 
 def coletar_dados_modem(porta_nome):
@@ -516,8 +531,10 @@ def main():
             else:
                 print(f"\n📋 {len(portas)} porta(s): {', '.join(portas)}")
                 modems = []
-                with serial_lock:
-                    for p in portas:
+                all_sms = []
+                for p in portas:
+                    lock = get_port_lock(p)
+                    with lock:
                         result = coletar_dados_modem(p)
                         modem_data, sms_mensagens = result
 
@@ -525,7 +542,11 @@ def main():
                             modems.append(modem_data)
 
                         if sms_mensagens:
-                            enviar_sms(api_key, sms_mensagens)
+                            all_sms.extend(sms_mensagens)
+
+                # Enviar SMS fora do lock para liberar portas mais rápido
+                if all_sms:
+                    enviar_sms(api_key, all_sms)
 
                 if modems:
                     sincronizar(api_key, modems)
