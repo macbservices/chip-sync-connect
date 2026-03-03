@@ -76,10 +76,10 @@ const Store = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Realtime SMS polling when popup is open
+  // Fast SMS polling when popup is open (near real-time)
   useEffect(() => {
     if (!activeSmsOrder || !smsPopupOpen) return;
-    const interval = setInterval(() => loadSmsCodes(activeSmsOrder), 5000);
+    const interval = setInterval(() => loadSmsCodes(activeSmsOrder), 1000);
     return () => clearInterval(interval);
   }, [activeSmsOrder, smsPopupOpen]);
 
@@ -482,7 +482,7 @@ const Store = () => {
               <div className="text-center text-muted-foreground py-8">
                 <MessageSquare className="mx-auto h-8 w-8 mb-2 opacity-30" />
                 <p className="text-sm">Nenhuma mensagem recebida ainda.</p>
-                <p className="text-xs mt-1 text-muted-foreground">Atualizando automaticamente a cada 5s...</p>
+                <p className="text-xs mt-1 text-muted-foreground">Atualizando automaticamente a cada 1s...</p>
               </div>
             ) : (
               smsCodes.map((sms) => (
@@ -502,7 +502,7 @@ const Store = () => {
           </div>
 
           <p className="text-xs text-center text-muted-foreground">
-            Atualizando automaticamente a cada 5 segundos
+            Atualizando automaticamente a cada 1 segundo
           </p>
         </DialogContent>
       </Dialog>

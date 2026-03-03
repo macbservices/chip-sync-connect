@@ -12,7 +12,7 @@ import json
 import re
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # ============================================================
 # CONFIGURAÇÃO
@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 API_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway"
 SMS_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway/sms"
 CONFIG_FILE = "config.json"
-INTERVALO_SYNC = 30
+INTERVALO_SYNC = 5
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1c2JueHN6emR0d2dpYmxpYmh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMzI4NTEsImV4cCI6MjA4NjkwODg1MX0.PTQQOeQEk3xVjF5Ry4BvltGRoJTMtPNxUODe5tTFw8g"
 BAUDRATE = 115200
 TIMEOUT_SERIAL = 3
@@ -153,14 +153,28 @@ def extrair_iccid(resposta):
 
 
 def parse_sms_timestamp(modem_ts):
-    """Converte timestamp do modem (ex: 26/03/03,14:22:11-12) para ISO UTC."""
+    """Converte timestamp do modem (ex: 26/03/03,14:22:11-12) para ISO UTC.
+    O sufixo +/-NN representa offset em quartos de hora (15 min).
+    """
     if not modem_ts or not isinstance(modem_ts, str):
         return None
     try:
-        # Remove offset do modem (muitos firmwares usam formato proprietário em quartos de hora)
-        base = re.split(r"[+-]", modem_ts.strip())[0]
-        dt = datetime.strptime(base, "%y/%m/%d,%H:%M:%S")
-        return dt.replace(tzinfo=timezone.utc).isoformat()
+        raw = modem_ts.strip()
+        match = re.match(r"^(\d{2}/\d{2}/\d{2},\d{2}:\d{2}:\d{2})([+-])(\d{2})$", raw)
+        if not match:
+            # Fallback sem offset explícito
+            dt = datetime.strptime(re.split(r"[+-]", raw)[0], "%y/%m/%d,%H:%M:%S")
+            return dt.replace(tzinfo=timezone.utc).isoformat()
+
+        base, sign, qh = match.groups()
+        dt_local = datetime.strptime(base, "%y/%m/%d,%H:%M:%S")
+        offset_minutes = int(qh) * 15
+        if sign == "-":
+            offset_minutes = -offset_minutes
+
+        tz = timezone(timedelta(minutes=offset_minutes))
+        dt_with_tz = dt_local.replace(tzinfo=tz)
+        return dt_with_tz.astimezone(timezone.utc).isoformat()
     except Exception:
         return None
 
@@ -421,18 +435,19 @@ def main():
             else:
                 print(f"\n📋 {len(portas)} porta(s): {', '.join(portas)}")
                 modems = []
-                all_sms = []
                 for p in portas:
                     result = coletar_dados_modem(p)
-                    if result[0]:
-                        modems.append(result[0])
-                        all_sms.extend(result[1])
+                    modem_data, sms_mensagens = result
+
+                    if modem_data:
+                        modems.append(modem_data)
+
+                    # Envio imediato de SMS por modem para reduzir latência
+                    if sms_mensagens:
+                        enviar_sms(api_key, sms_mensagens)
 
                 if modems:
                     sincronizar(api_key, modems)
-
-                if all_sms:
-                    enviar_sms(api_key, all_sms)
 
                 if not modems:
                     print("⚠️  Nenhum modem GSM respondeu")
