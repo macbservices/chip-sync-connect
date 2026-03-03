@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Zap, Shield, Clock, Users, ChevronRight } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ const Index = () => {
             <span className="text-lg font-bold tracking-tight">MAC CHIP</span>
           </div>
           <div className="flex items-center gap-2">
+            <DarkModeToggle />
             <Button variant="ghost" onClick={() => navigate("/auth")} size="sm">
               Entrar
             </Button>

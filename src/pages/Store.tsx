@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 type Service = {
   id: string;
@@ -286,6 +287,7 @@ const Store = () => {
               </Button>
             )}
             <NotificationBell />
+            <DarkModeToggle />
             <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
