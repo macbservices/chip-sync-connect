@@ -122,8 +122,23 @@ const Index = () => {
         </section>
       </main>
 
-      <footer className="border-t py-6 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Mac Chip — Todos os direitos reservados
+      <footer className="border-t py-6">
+        <div className="container flex flex-col items-center gap-3">
+          <div className="flex flex-wrap justify-center gap-4 text-sm">
+            <button onClick={() => navigate("/termos")} className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors">
+              Termos de Uso
+            </button>
+            <button onClick={() => navigate("/privacidade")} className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors">
+              Política de Privacidade
+            </button>
+            <button onClick={() => navigate("/cookies")} className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors">
+              Política de Cookies
+            </button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} MAC CHIP — Todos os direitos reservados
+          </p>
+        </div>
       </footer>
     </div>
   );
