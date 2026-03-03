@@ -451,6 +451,22 @@ const Admin = () => {
     toast.success("Todas as ativações de chips foram zeradas!");
   };
 
+  const deleteRecharge = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta recarga?")) return;
+    const { error } = await supabase.from("recharge_requests").delete().eq("id", id);
+    if (error) { toast.error("Erro ao excluir recarga: " + error.message); return; }
+    toast.success("Recarga removida!");
+    fetchAll();
+  };
+
+  const deleteWithdrawal = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir este saque?")) return;
+    const { error } = await supabase.from("withdrawal_requests").delete().eq("id", id);
+    if (error) { toast.error("Erro ao excluir saque: " + error.message); return; }
+    toast.success("Saque removido!");
+    fetchWithdrawals();
+  };
+
   const deleteOrder = async (orderId: string) => {
     if (!confirm("Tem certeza que deseja apagar este pedido do histórico?")) return;
     const { error } = await supabase.from("orders").delete().eq("id", orderId);
@@ -814,16 +830,21 @@ const Admin = () => {
                           {new Date(r.created_at).toLocaleDateString("pt-BR")}
                         </TableCell>
                         <TableCell className="text-right">
-                          {r.status === "pending" && (
-                            <div className="flex gap-1 justify-end">
-                              <Button variant="ghost" size="icon" title="Aprovar e creditar" onClick={() => approveRecharge(r)}>
-                                <Check className="h-4 w-4 text-accent" />
-                              </Button>
-                              <Button variant="ghost" size="icon" title="Rejeitar" onClick={() => rejectRecharge(r)}>
-                                <X className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex gap-1 justify-end">
+                            {r.status === "pending" && (
+                              <>
+                                <Button variant="ghost" size="icon" title="Aprovar e creditar" onClick={() => approveRecharge(r)}>
+                                  <Check className="h-4 w-4 text-accent" />
+                                </Button>
+                                <Button variant="ghost" size="icon" title="Rejeitar" onClick={() => rejectRecharge(r)}>
+                                  <X className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
+                            <Button variant="ghost" size="icon" title="Excluir recarga" onClick={() => deleteRecharge(r.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1140,6 +1161,9 @@ const Admin = () => {
                             {w.status === "paid" && (
                               <Badge variant="default">Pago ✓</Badge>
                             )}
+                            <Button variant="ghost" size="icon" title="Excluir saque" onClick={() => deleteWithdrawal(w.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
