@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Smartphone, ArrowLeft, QrCode as QrCodeIcon, Copy,
-  CheckCircle2, Loader2, Upload, Mail
+  CheckCircle2, Loader2, Upload, Mail, XCircle, MessageSquareText
 } from "lucide-react";
 
 const PIX_KEY = "claudiorevestres@gmail.com";
@@ -63,7 +63,9 @@ function buildPixPayload(key: string, merchantName: string, city: string, amount
   return payload + crc.toString(16).toUpperCase().padStart(4, "0");
 }
 
-type Step = "amount" | "pay" | "uploading" | "done";
+type Step = "amount" | "pay" | "uploading" | "done" | "failed";
+
+const MAX_VERIFY_ATTEMPTS = 3;
 
 const Recharge = () => {
   const navigate = useNavigate();
@@ -73,6 +75,8 @@ const Recharge = () => {
   const [rechargeId, setRechargeId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [verifyAttempts, setVerifyAttempts] = useState(0);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -113,6 +117,7 @@ const Recharge = () => {
     if (!rechargeId || !userId) return;
     setUploading(true);
     setStep("uploading");
+    setVerifyError(null);
 
     try {
       const ext = file.name.split(".").pop() || "jpg";
@@ -129,19 +134,32 @@ const Recharge = () => {
         .update({ pix_proof_url: path })
         .eq("id", rechargeId);
 
-      // Try AI verification silently
+      // Try AI verification
       try {
         const { data } = await supabase.functions.invoke("verify-pix", {
           body: { recharge_id: rechargeId },
         });
         if (data?.approved) {
           toast.success("Saldo creditado automaticamente!");
+          setStep("done");
+          return;
+        }
+        // AI said not approved
+        const newAttempts = verifyAttempts + 1;
+        setVerifyAttempts(newAttempts);
+        const reason = data?.reason || "Comprovante não corresponde à recarga";
+        if (newAttempts >= MAX_VERIFY_ATTEMPTS) {
+          setVerifyError(reason);
+          setStep("failed");
+        } else {
+          setVerifyError(reason);
+          toast.error(`Tentativa ${newAttempts}/${MAX_VERIFY_ATTEMPTS}: ${reason}`);
+          setStep("pay");
         }
       } catch {
-        // AI verification failed — stays pending for admin
+        // AI unavailable — stays pending for admin review
+        setStep("done");
       }
-
-      setStep("done");
     } catch (err: any) {
       toast.error("Erro ao enviar comprovante: " + err.message);
       setStep("pay");
@@ -149,6 +167,35 @@ const Recharge = () => {
       setUploading(false);
     }
   };
+
+  if (step === "failed") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full shadow-lg">
+          <CardContent className="p-10 text-center space-y-5">
+            <XCircle className="mx-auto h-16 w-16 text-destructive" />
+            <h2 className="text-2xl font-bold">Verificação falhou</h2>
+            <p className="text-muted-foreground">
+              Após {MAX_VERIFY_ATTEMPTS} tentativas, não foi possível validar seu comprovante.
+              {verifyError && <><br /><span className="text-sm">Motivo: {verifyError}</span></>}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Entre em contato com o suporte para resolver o problema.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button className="w-full" size="lg" onClick={() => navigate("/suporte")}>
+                <MessageSquareText className="mr-2 h-4 w-4" />
+                Abrir Ticket de Suporte
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => navigate("/store")}>
+                Voltar à loja
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (step === "done") {
     return (
@@ -299,6 +346,17 @@ const Recharge = () => {
                 </label>
               </CardContent>
             </Card>
+
+            {verifyError && (
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardContent className="p-4 text-center">
+                  <p className="text-sm text-destructive font-medium mb-1">
+                    ⚠️ Tentativa {verifyAttempts}/{MAX_VERIFY_ATTEMPTS}: {verifyError}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Envie o comprovante correto abaixo.</p>
+                </CardContent>
+              </Card>
+            )}
 
             <p className="text-xs text-center text-muted-foreground">
               O saldo será liberado automaticamente ou pelo administrador após verificação.

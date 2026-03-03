@@ -20,6 +20,7 @@ import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Support from "./pages/Support";
 
 const queryClient = new QueryClient();
 
@@ -82,6 +83,14 @@ const App = () => (
             element={
               <RouteGuard allowedRoles={["customer", "admin"]}>
                 <MyOrders />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/suporte"
+            element={
+              <RouteGuard allowedRoles={["customer", "admin"]}>
+                <Support />
               </RouteGuard>
             }
           />
