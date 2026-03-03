@@ -16,6 +16,8 @@ import Admin from "./pages/Admin";
 import NoAccess from "./pages/NoAccess";
 import NotFound from "./pages/NotFound";
 import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Cookies from "./pages/Cookies";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 
@@ -35,6 +37,8 @@ const App = () => (
           <Route path="/escolher-perfil" element={<ChooseRole />} />
           <Route path="/sem-acesso" element={<NoAccess />} />
           <Route path="/termos" element={<Terms />} />
+          <Route path="/privacidade" element={<Privacy />} />
+          <Route path="/cookies" element={<Cookies />} />
           <Route path="/esqueci-senha" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
