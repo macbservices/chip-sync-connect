@@ -267,7 +267,7 @@ const Recharge = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-center p-4 bg-white rounded-lg">
+                <div className="flex justify-center p-4 bg-card rounded-lg">
                   <QRCodeSVG value={pixPayload} size={220} />
                 </div>
 
