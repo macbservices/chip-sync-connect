@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 type Service = {
   id: string;
@@ -630,6 +631,7 @@ const Admin = () => {
               )}
             </Button>
             <NotificationBell />
+            <DarkModeToggle />
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" />
             </Button>
