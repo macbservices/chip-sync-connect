@@ -76,10 +76,31 @@ const Store = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fast SMS polling when popup is open (near real-time)
+  // Fast SMS polling when popup is open — stops once SMS arrives or order completed
   useEffect(() => {
     if (!activeSmsOrder || !smsPopupOpen) return;
-    const interval = setInterval(() => loadSmsCodes(activeSmsOrder), 1000);
+    if (activeSmsOrder.status === "completed") return;
+
+    const poll = async () => {
+      // Check if order was completed (SMS received)
+      const { data: freshOrder } = await supabase
+        .from("orders")
+        .select("id, status, amount_cents, phone_number, chip_id, created_at, service:services(name, type)")
+        .eq("id", activeSmsOrder.id)
+        .single();
+
+      if (freshOrder && freshOrder.status === "completed") {
+        // Load final SMS and stop polling
+        await loadSmsCodes(activeSmsOrder);
+        setActiveSmsOrder({ ...activeSmsOrder, status: "completed" });
+        if (session) fetchAll(session.user.id);
+        return;
+      }
+
+      await loadSmsCodes(activeSmsOrder);
+    };
+
+    const interval = setInterval(poll, 1000);
     return () => clearInterval(interval);
   }, [activeSmsOrder, smsPopupOpen]);
 
@@ -430,6 +451,12 @@ const Store = () => {
                             </Button>
                           </div>
                         )}
+                        {order.status === "completed" && order.chip_id && (
+                          <Button size="sm" variant="outline" onClick={() => openSmsPopup(order)}>
+                            <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                            Ver SMS
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -474,7 +501,7 @@ const Store = () => {
           )}
 
           <div className="max-h-72 overflow-y-auto space-y-2">
-            {smsLoading ? (
+            {smsLoading && smsCodes.length === 0 ? (
               <div className="flex justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin text-primary" />
               </div>
@@ -501,9 +528,20 @@ const Store = () => {
             )}
           </div>
 
-          <p className="text-xs text-center text-muted-foreground">
-            Atualizando automaticamente a cada 1 segundo
-          </p>
+          {activeSmsOrder?.status === "completed" ? (
+            <div className="rounded-lg border-2 border-green-500/30 bg-green-500/10 px-4 py-3 text-center">
+              <p className="text-sm font-semibold text-green-700 dark:text-green-400">
+                ✅ SMS recebido — Pedido concluído!
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Este serviço foi finalizado. Para receber outro código, faça uma nova compra.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-center text-muted-foreground">
+              Atualizando automaticamente a cada 1 segundo
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </div>
