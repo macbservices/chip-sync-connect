@@ -17,6 +17,7 @@ import {
   Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
+import NotificationBell from "@/components/NotificationBell";
 
 type Service = {
   id: string;
@@ -612,6 +613,7 @@ const Admin = () => {
                 </span>
               )}
             </Button>
+            <NotificationBell />
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" />
             </Button>

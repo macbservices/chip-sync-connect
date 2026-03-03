@@ -13,6 +13,7 @@ import {
   Clock, CheckCircle2, XCircle
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
+import NotificationBell from "@/components/NotificationBell";
 
 type Ticket = {
   id: string;
@@ -143,6 +144,7 @@ const Support = () => {
               <MessageSquarePlus className="mr-1 h-4 w-4" />
               Novo Ticket
             </Button>
+            <NotificationBell />
           </div>
         </div>
       </header>
