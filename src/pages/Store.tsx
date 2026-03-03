@@ -127,6 +127,7 @@ const Store = () => {
       .select("id, sender, message, received_at")
       .eq("chip_id", order.chip_id)
       .eq("direction", "incoming")
+      .gte("received_at", order.created_at)
       .order("received_at", { ascending: false })
       .limit(20);
     setSmsCodes((sms as any) || []);
