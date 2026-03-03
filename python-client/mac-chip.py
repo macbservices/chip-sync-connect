@@ -1,6 +1,7 @@
 """
-GSM Gateway Client - Envia dados dos modems para o dashboard web.
-Compile com: pyinstaller --onefile app_gsm.py
+Mac Chip - Cliente Local
+Lê dados dos modems GSM e SMS via porta serial e envia para o dashboard web.
+Compile com: pyinstaller --onefile --icon=icon.ico --name="Mac Chip" mac-chip.py
 """
 
 import serial
@@ -16,6 +17,7 @@ import os
 # CONFIGURAÇÃO
 # ============================================================
 API_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway"
+SMS_URL = "https://eusbnxszzdtwgiblibhz.supabase.co/functions/v1/gsm-gateway/sms"
 CONFIG_FILE = "config.json"
 INTERVALO_SYNC = 30
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1c2JueHN6emR0d2dpYmxpYmh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMzI4NTEsImV4cCI6MjA4NjkwODg1MX0.PTQQOeQEk3xVjF5Ry4BvltGRoJTMtPNxUODe5tTFw8g"
@@ -138,6 +140,70 @@ def descobrir_portas_gsm():
     return [p.device for p in serial.tools.list_ports.comports()]
 
 
+def ler_sms(porta_serial, phone_number):
+    """Lê todas as mensagens SMS não lidas do modem via AT+CMGL."""
+    mensagens = []
+    try:
+        # Set text mode
+        enviar_at(porta_serial, "AT+CMGF=1", 0.5)
+        # Read all messages (ALL to catch everything, then we filter)
+        resp = enviar_at(porta_serial, 'AT+CMGL="ALL"', 2)
+
+        if not resp or "+CMGL:" not in resp:
+            return mensagens
+
+        # Parse SMS entries
+        linhas = resp.split("\n")
+        i = 0
+        while i < len(linhas):
+            linha = linhas[i].strip()
+            if linha.startswith("+CMGL:"):
+                # Format: +CMGL: <index>,<stat>,<oa/da>,[<alpha>],[<scts>]
+                match = re.match(
+                    r'\+CMGL:\s*(\d+),"([^"]*?)","([^"]*?)",[^,]*,"([^"]*?)"',
+                    linha,
+                )
+                if match:
+                    index = match.group(1)
+                    status = match.group(2)
+                    sender = match.group(3)
+                    timestamp = match.group(4)
+
+                    # Next line(s) = message body
+                    msg_body = ""
+                    if i + 1 < len(linhas):
+                        msg_body = linhas[i + 1].strip()
+                        # Skip if it's another +CMGL or OK
+                        if msg_body.startswith("+CMGL:") or msg_body == "OK":
+                            msg_body = ""
+                        else:
+                            i += 1
+
+                    mensagens.append({
+                        "index": index,
+                        "phone_number": phone_number,
+                        "direction": "incoming",
+                        "sender": sender,
+                        "message": msg_body,
+                        "received_at": None,  # Will use server time
+                    })
+                    print(f"  📩 SMS de {sender}: {msg_body[:50]}...")
+            i += 1
+
+        # Delete read messages to avoid re-sending
+        for msg in mensagens:
+            enviar_at(porta_serial, f"AT+CMGD={msg['index']}", 0.5)
+
+        # Remove index key before sending
+        for msg in mensagens:
+            del msg["index"]
+
+    except Exception as e:
+        print(f"  [ERRO] Lendo SMS: {e}")
+
+    return mensagens
+
+
 def coletar_dados_modem(porta_nome):
     print(f"\n📡 Lendo modem em {porta_nome}...")
 
@@ -145,7 +211,7 @@ def coletar_dados_modem(porta_nome):
     portas_atuais = set(descobrir_portas_gsm())
     if porta_nome not in portas_atuais:
         print(f"  [AVISO] Porta {porta_nome} não está mais disponível")
-        return None
+        return None, []
 
     ser = None
     try:
@@ -169,14 +235,14 @@ def coletar_dados_modem(porta_nome):
 
                 if porta_indisponivel:
                     print(f"  [AVISO] Porta {porta_nome} indisponível/ocupada")
-                    return None
+                    return None, []
 
                 print(f"  [ERRO] {porta_nome}: {e}")
-                return None
+                return None, []
 
         if not ser:
             print(f"  [AVISO] Porta {porta_nome} indisponível")
-            return None
+            return None, []
 
         time.sleep(1)
 
@@ -184,7 +250,7 @@ def coletar_dados_modem(porta_nome):
         if "OK" not in resp:
             print(f"  [AVISO] Porta {porta_nome} não respondeu ao AT")
             ser.close()
-            return None
+            return None, []
 
         imei = extrair_imei(enviar_at(ser, "AT+GSN"))
         operadora = extrair_operadora(enviar_at(ser, "AT+COPS?"))
@@ -193,6 +259,16 @@ def coletar_dados_modem(porta_nome):
         iccid = extrair_iccid(enviar_at(ser, "AT+CCID"))
         if not iccid:
             iccid = extrair_iccid(enviar_at(ser, "AT+ICCID"))
+
+        # Determine phone number for SMS reading
+        phone = numero
+        if not phone and iccid:
+            phone = iccid[:11]
+
+        # Read SMS messages
+        sms_mensagens = []
+        if phone:
+            sms_mensagens = ler_sms(ser, phone)
 
         ser.close()
 
@@ -216,15 +292,15 @@ def coletar_dados_modem(porta_nome):
                 "operator": operadora, "status": "active",
             })
 
-        print(f"  IMEI: {imei} | Op: {operadora} | Sinal: {sinal} | Nº: {numero}")
-        return modem_data
+        print(f"  IMEI: {imei} | Op: {operadora} | Sinal: {sinal} | Nº: {numero} | SMS: {len(sms_mensagens)}")
+        return modem_data, sms_mensagens
 
     except serial.SerialException as e:
         print(f"  [AVISO] {porta_nome}: indisponível/ocupada ({e})")
-        return None
+        return None, []
     except Exception as e:
         print(f"  [ERRO] {porta_nome}: {e}")
-        return None
+        return None, []
     finally:
         try:
             if ser and ser.is_open:
@@ -256,9 +332,36 @@ def sincronizar(api_key, modems_data):
         print(f"❌ Erro: {e}")
 
 
+def enviar_sms(api_key, mensagens):
+    """Envia SMS coletados para o servidor."""
+    if not mensagens:
+        return
+    try:
+        print(f"📨 Enviando {len(mensagens)} SMS para o servidor...")
+        resp = requests.post(
+            SMS_URL,
+            json={"messages": mensagens},
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "apikey": SUPABASE_ANON_KEY,
+            },
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            result = resp.json()
+            print(f"✅ {result.get('inserted', 0)} SMS registrados!")
+        else:
+            print(f"❌ Erro SMS {resp.status_code}: {resp.text}")
+    except requests.exceptions.ConnectionError:
+        print("❌ Sem conexão com a internet")
+    except Exception as e:
+        print(f"❌ Erro SMS: {e}")
+
+
 def main():
     print("=" * 50)
-    print("   GSM Gateway Client v1.1")
+    print("   Mac Chip - Cliente Local v2.0")
     print("=" * 50)
 
     api_key = obter_api_key()
@@ -274,10 +377,21 @@ def main():
                 print("\n⚠️  Nenhuma porta serial encontrada.")
             else:
                 print(f"\n📋 {len(portas)} porta(s): {', '.join(portas)}")
-                modems = [d for p in portas if (d := coletar_dados_modem(p))]
+                modems = []
+                all_sms = []
+                for p in portas:
+                    result = coletar_dados_modem(p)
+                    if result[0]:
+                        modems.append(result[0])
+                        all_sms.extend(result[1])
+
                 if modems:
                     sincronizar(api_key, modems)
-                else:
+
+                if all_sms:
+                    enviar_sms(api_key, all_sms)
+
+                if not modems:
                     print("⚠️  Nenhum modem GSM respondeu")
 
             print(f"💤 Próximo sync em {INTERVALO_SYNC}s...")

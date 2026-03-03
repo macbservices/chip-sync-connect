@@ -65,6 +65,65 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname.split("/").pop();
 
+    // POST /gsm-gateway/sms - receive SMS from Python client
+    if (req.method === "POST" && path === "sms") {
+      const contentLength = req.headers.get("content-length");
+      if (contentLength && parseInt(contentLength) > 100_000) {
+        return new Response(JSON.stringify({ error: "Payload too large" }), {
+          status: 413,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const body = await req.json();
+      if (!body || !Array.isArray(body.messages)) {
+        return new Response(JSON.stringify({ error: "Invalid request body: expected { messages: [...] }" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let inserted = 0;
+      for (const msg of body.messages.slice(0, 200)) {
+        if (!isValidString(msg.phone_number, 30) || !isValidString(msg.direction, 20)) continue;
+
+        // Find chip by phone_number in this location's modems
+        const { data: chip } = await supabase
+          .from("chips")
+          .select("id, modem_id")
+          .eq("phone_number", msg.phone_number.trim())
+          .single();
+
+        if (!chip) continue;
+
+        // Verify chip belongs to this location
+        const { data: modem } = await supabase
+          .from("modems")
+          .select("id")
+          .eq("id", chip.modem_id)
+          .eq("location_id", location.id)
+          .single();
+
+        if (!modem) continue;
+
+        const { error: insertErr } = await supabase.from("sms_logs").insert({
+          chip_id: chip.id,
+          direction: sanitizeString(msg.direction, 20),
+          sender: msg.sender ? msg.sender.trim().slice(0, 50) : null,
+          recipient: msg.recipient ? msg.recipient.trim().slice(0, 50) : null,
+          message: msg.message ? msg.message.slice(0, 500) : null,
+          received_at: msg.received_at || new Date().toISOString(),
+        });
+
+        if (!insertErr) inserted++;
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, inserted }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // POST /gsm-gateway - heartbeat + sync modems
     if (req.method === "POST" && (!path || path === "gsm-gateway")) {
       // Limit request body size
