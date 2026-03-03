@@ -172,7 +172,7 @@ const Store = () => {
 
     setBuying(service.id);
     try {
-      const { data: orderId, error } = await supabase.rpc("purchase_service", { _service_id: service.id });
+      const { data: orderId, error } = await supabase.rpc("purchase_service", { _service_id: service.id }).single();
       if (error) throw error;
 
       toast.success("Pedido criado! O número foi atribuído.");
