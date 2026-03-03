@@ -88,6 +88,18 @@ const Support = () => {
 
       if (insertError) throw insertError;
 
+      // Send email notification (fire-and-forget)
+      supabase.functions.invoke("send-notification-email", {
+        body: {
+          type: "new_ticket",
+          data: {
+            subject: subject.trim(),
+            message: message.trim(),
+            screenshot_url: path,
+          },
+        },
+      }).catch(console.error);
+
       toast.success("Ticket enviado com sucesso!");
       setSubject("");
       setMessage("");
