@@ -12,6 +12,7 @@ import json
 import re
 import sys
 import os
+from datetime import datetime, timezone
 
 # ============================================================
 # CONFIGURAÇÃO
@@ -151,6 +152,19 @@ def extrair_iccid(resposta):
     return match.group(0) if match else None
 
 
+def parse_sms_timestamp(modem_ts):
+    """Converte timestamp do modem (ex: 26/03/03,14:22:11-12) para ISO UTC."""
+    if not modem_ts or not isinstance(modem_ts, str):
+        return None
+    try:
+        # Remove offset do modem (muitos firmwares usam formato proprietário em quartos de hora)
+        base = re.split(r"[+-]", modem_ts.strip())[0]
+        dt = datetime.strptime(base, "%y/%m/%d,%H:%M:%S")
+        return dt.replace(tzinfo=timezone.utc).isoformat()
+    except Exception:
+        return None
+
+
 def descobrir_portas_gsm():
     return [p.device for p in serial.tools.list_ports.comports()]
 
@@ -206,13 +220,14 @@ def ler_sms(porta_serial, phone_number):
             is_incoming = ("REC" in status_upper) or (status == "")
 
             if is_incoming:
+                parsed_received_at = parse_sms_timestamp(timestamp)
                 mensagens.append({
                     "index": index,
                     "phone_number": phone_number,
                     "direction": "incoming",
                     "sender": sender or None,
                     "message": msg_body,
-                    "received_at": None,  # usa horário do servidor
+                    "received_at": parsed_received_at,
                 })
                 print(f"  📩 SMS de {sender or 'desconhecido'}: {msg_body[:50]}...")
 

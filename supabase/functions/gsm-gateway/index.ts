@@ -24,6 +24,10 @@ function isValidSignalStrength(val: unknown): boolean {
   return val === undefined || val === null || (typeof val === "number" && val >= -120 && val <= 99);
 }
 
+function normalizePhoneNumber(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -87,12 +91,35 @@ Deno.serve(async (req) => {
       for (const msg of body.messages.slice(0, 200)) {
         if (!isValidString(msg.phone_number, 30) || !isValidString(msg.direction, 20)) continue;
 
-        // Find chip by phone_number in this location's modems
-        const { data: chip } = await supabase
+        const incomingPhoneRaw = msg.phone_number.trim().slice(0, 30);
+        const normalizedIncomingPhone = normalizePhoneNumber(incomingPhoneRaw);
+
+        // Try exact phone match first
+        let { data: chip } = await supabase
           .from("chips")
-          .select("id, modem_id")
-          .eq("phone_number", msg.phone_number.trim())
-          .single();
+          .select("id, modem_id, phone_number")
+          .eq("phone_number", incomingPhoneRaw)
+          .maybeSingle();
+
+        // Fallback: match by normalized phone (handles +55 vs 55 formatting)
+        if (!chip) {
+          const { data: locationModems } = await supabase
+            .from("modems")
+            .select("id")
+            .eq("location_id", location.id);
+
+          const modemIds = (locationModems || []).map((m) => m.id);
+          if (modemIds.length === 0) continue;
+
+          const { data: locationChips } = await supabase
+            .from("chips")
+            .select("id, modem_id, phone_number")
+            .in("modem_id", modemIds);
+
+          chip = (locationChips || []).find(
+            (c) => normalizePhoneNumber(c.phone_number) === normalizedIncomingPhone
+          ) ?? null;
+        }
 
         if (!chip) continue;
 
@@ -106,13 +133,33 @@ Deno.serve(async (req) => {
 
         if (!modem) continue;
 
+        // Only persist SMS when there is an active/paid contracted order for this chip
+        const { data: activeOrder } = await supabase
+          .from("orders")
+          .select("id, created_at")
+          .eq("chip_id", chip.id)
+          .in("status", ["active", "paid"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!activeOrder) continue;
+
+        const receivedAt =
+          typeof msg.received_at === "string" && !Number.isNaN(Date.parse(msg.received_at))
+            ? new Date(msg.received_at).toISOString()
+            : new Date().toISOString();
+
+        // Ignore stale/backlog SMS older than the current contracted order
+        if (new Date(receivedAt).getTime() < new Date(activeOrder.created_at).getTime()) continue;
+
         const { error: insertErr } = await supabase.from("sms_logs").insert({
           chip_id: chip.id,
           direction: sanitizeString(msg.direction, 20),
           sender: msg.sender ? msg.sender.trim().slice(0, 50) : null,
           recipient: msg.recipient ? msg.recipient.trim().slice(0, 50) : null,
           message: msg.message ? msg.message.slice(0, 500) : null,
-          received_at: msg.received_at || new Date().toISOString(),
+          received_at: receivedAt,
         });
 
         if (!insertErr) inserted++;
