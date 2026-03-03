@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import macChipLogo from "@/assets/mac-chip-logo.png";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/use-role";
+import { Input } from "@/components/ui/input";
 import {
   LogOut,
   MapPin,
@@ -456,10 +457,8 @@ const Dashboard = () => {
       <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Smartphone className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl font-bold">CHIP SMS</h1>
+            <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
+            <h1 className="text-xl font-bold">MAC CHIP</h1>
             <span className="hidden sm:inline text-muted-foreground text-sm">— Painel do Colaborador</span>
           </div>
           <div className="flex items-center gap-2">

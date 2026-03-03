@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Smartphone, Zap, Shield, Clock, Users, ChevronRight } from "lucide-react";
+import { Zap, Shield, Clock, Users, ChevronRight } from "lucide-react";
+import macChipLogo from "@/assets/mac-chip-logo.png";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -27,10 +28,8 @@ const Index = () => {
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Smartphone className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">CHIP SMS</span>
+            <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
+            <span className="text-lg font-bold tracking-tight">MAC CHIP</span>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate("/auth")} size="sm">
@@ -75,7 +74,7 @@ const Index = () => {
         <section className="border-t bg-muted/30 py-16 sm:py-20">
           <div className="container">
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">
-              Por que usar o CHIP SMS?
+              Por que usar a Mac Chip?
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
               {[
@@ -124,7 +123,7 @@ const Index = () => {
       </main>
 
       <footer className="border-t py-6 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} CHIP SMS — Todos os direitos reservados
+        © {new Date().getFullYear()} Mac Chip — Todos os direitos reservados
       </footer>
     </div>
   );

@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Smartphone } from "lucide-react";
+import macChipLogo from "@/assets/mac-chip-logo.png";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -101,10 +102,8 @@ const Auth = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Smartphone className="h-7 w-7 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl">CHIP SMS</CardTitle>
+          <img src={macChipLogo} alt="Mac Chip" className="mx-auto mb-4 h-14 w-14 rounded-xl object-contain" />
+          <CardTitle className="text-2xl">MAC CHIP</CardTitle>
           <CardDescription>
             {isLogin ? "Entre na sua conta" : "Crie sua conta"}
           </CardDescription>
