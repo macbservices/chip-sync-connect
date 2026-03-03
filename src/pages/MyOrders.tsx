@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Smartphone, ArrowLeft, ShoppingBag } from "lucide-react";
+import { Smartphone, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 type Order = {
   id: string;
@@ -39,6 +40,16 @@ const MyOrders = () => {
       .order("created_at", { ascending: false });
     setOrders((data as any) || []);
     setLoading(false);
+  };
+
+  const handleDelete = async (orderId: string) => {
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
+    if (error) {
+      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+    } else {
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      toast({ title: "Pedido removido do histórico" });
+    }
   };
 
   const formatPrice = (cents: number) =>
@@ -99,6 +110,7 @@ const MyOrders = () => {
                     <TableHead>Status</TableHead>
                     <TableHead>Número</TableHead>
                     <TableHead>Data</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -114,6 +126,16 @@ const MyOrders = () => {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(order.created_at).toLocaleDateString("pt-BR")}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(order.id)}
+                          title="Excluir do histórico"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
