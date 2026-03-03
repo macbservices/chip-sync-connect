@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import macChipLogo from "@/assets/mac-chip-logo.png";
+import NotificationBell from "@/components/NotificationBell";
 
 type Service = {
   id: string;
@@ -284,6 +285,7 @@ const Store = () => {
                 Admin
               </Button>
             )}
+            <NotificationBell />
             <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
