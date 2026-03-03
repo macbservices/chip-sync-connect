@@ -194,6 +194,15 @@ const Auth = () => {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Aguarde..." : isLogin ? "Entrar" : "Criar conta"}
             </Button>
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => navigate("/esqueci-senha")}
+                className="w-full text-center text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
+              >
+                Esqueci minha senha
+              </button>
+            )}
           </form>
           <div className="text-center text-sm text-muted-foreground">
             {isLogin ? "Não tem conta?" : "Já tem conta?"}{" "}
