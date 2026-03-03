@@ -96,13 +96,28 @@ def obter_api_key():
         return api_key
 
 
-def enviar_at(porta_serial, comando, espera=1):
-    """Envia um comando AT e retorna a resposta."""
+def enviar_at(porta_serial, comando, espera=1, espera_final=0.5):
+    """Envia um comando AT e retorna a resposta completa (inclusive quando chega em partes)."""
     try:
+        porta_serial.reset_input_buffer()
         porta_serial.write((comando + "\r\n").encode())
         time.sleep(espera)
-        resposta = porta_serial.read(porta_serial.in_waiting).decode(errors="ignore")
-        return resposta.strip()
+
+        partes = []
+        ultima_leitura = time.time()
+
+        while True:
+            waiting = porta_serial.in_waiting
+            if waiting > 0:
+                chunk = porta_serial.read(waiting).decode(errors="ignore")
+                partes.append(chunk)
+                ultima_leitura = time.time()
+            elif time.time() - ultima_leitura >= espera_final:
+                break
+
+            time.sleep(0.05)
+
+        return "".join(partes).strip()
     except Exception as e:
         print(f"  [ERRO] Comando {comando}: {e}")
         return ""
@@ -141,54 +156,67 @@ def descobrir_portas_gsm():
 
 
 def ler_sms(porta_serial, phone_number):
-    """Lê todas as mensagens SMS não lidas do modem via AT+CMGL."""
+    """Lê mensagens SMS do modem via AT+CMGL de forma tolerante a variações de firmware."""
     mensagens = []
     try:
-        # Set text mode
+        # Configura modem para leitura em texto e memória SIM
         enviar_at(porta_serial, "AT+CMGF=1", 0.5)
-        # Read all messages (ALL to catch everything, then we filter)
-        resp = enviar_at(porta_serial, 'AT+CMGL="ALL"', 2)
+        enviar_at(porta_serial, 'AT+CPMS="SM","SM","SM"', 0.5)
+
+        # Lê todas as mensagens e filtra no parse
+        resp = enviar_at(porta_serial, 'AT+CMGL="ALL"', 3)
 
         if not resp or "+CMGL:" not in resp:
             return mensagens
 
-        # Parse SMS entries
-        linhas = resp.split("\n")
+        linhas = [l.strip() for l in resp.split("\n") if l.strip()]
         i = 0
+
         while i < len(linhas):
-            linha = linhas[i].strip()
-            if linha.startswith("+CMGL:"):
-                # Format: +CMGL: <index>,<stat>,<oa/da>,[<alpha>],[<scts>]
-                match = re.match(
-                    r'\+CMGL:\s*(\d+),"([^"]*?)","([^"]*?)",[^,]*,"([^"]*?)"',
-                    linha,
-                )
-                if match:
-                    index = match.group(1)
-                    status = match.group(2)
-                    sender = match.group(3)
-                    timestamp = match.group(4)
+            linha = linhas[i]
+            if not linha.startswith("+CMGL:"):
+                i += 1
+                continue
 
-                    # Next line(s) = message body
-                    msg_body = ""
-                    if i + 1 < len(linhas):
-                        msg_body = linhas[i + 1].strip()
-                        # Skip if it's another +CMGL or OK
-                        if msg_body.startswith("+CMGL:") or msg_body == "OK":
-                            msg_body = ""
-                        else:
-                            i += 1
+            idx_match = re.match(r"\+CMGL:\s*(\d+)", linha)
+            if not idx_match:
+                i += 1
+                continue
 
-                    mensagens.append({
-                        "index": index,
-                        "phone_number": phone_number,
-                        "direction": "incoming",
-                        "sender": sender,
-                        "message": msg_body,
-                        "received_at": None,  # Will use server time
-                    })
-                    print(f"  📩 SMS de {sender}: {msg_body[:50]}...")
-            i += 1
+            index = idx_match.group(1)
+            quoted = re.findall(r'"([^"]*)"', linha)
+            status = quoted[0] if len(quoted) >= 1 else ""
+            sender = quoted[1] if len(quoted) >= 2 else ""
+            timestamp = quoted[-1] if len(quoted) >= 3 else ""
+
+            # Captura corpo da mensagem até próximo cabeçalho +CMGL ou OK
+            corpo_linhas = []
+            j = i + 1
+            while j < len(linhas):
+                prox = linhas[j]
+                if prox.startswith("+CMGL:") or prox == "OK":
+                    break
+                corpo_linhas.append(prox)
+                j += 1
+
+            msg_body = "\n".join(corpo_linhas).strip()
+
+            # Aceita mensagens recebidas (REC UNREAD/REC READ) e também fallback quando status vier vazio
+            status_upper = status.upper()
+            is_incoming = ("REC" in status_upper) or (status == "")
+
+            if is_incoming:
+                mensagens.append({
+                    "index": index,
+                    "phone_number": phone_number,
+                    "direction": "incoming",
+                    "sender": sender or None,
+                    "message": msg_body,
+                    "received_at": None,  # usa horário do servidor
+                })
+                print(f"  📩 SMS de {sender or 'desconhecido'}: {msg_body[:50]}...")
+
+            i = max(j, i + 1)
 
         # Delete read messages to avoid re-sending
         for msg in mensagens:
