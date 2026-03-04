@@ -42,6 +42,8 @@ type Order = {
   fraud_alert: string | null;
   created_at: string;
   service: { name: string; type: string } | null;
+  customer_name?: string;
+  customer_email?: string;
 };
 
 type RechargeRequest = {
@@ -189,22 +191,31 @@ const Admin = () => {
     ]);
 
     setServices(svcData || []);
-    setOrders((ordData as any) || []);
     setChips((chipData as any) || []);
 
-    // Enrich recharges with user info
+    // Fetch user info to enrich orders and recharges
+    const ordList = (ordData as any) || [];
     const rechList = (rechData as any) || [];
-    if (rechList.length > 0) {
+    let userMap = new Map<string, any>();
+
+    if (ordList.length > 0 || rechList.length > 0) {
       const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
-      const userMap = new Map((usersData || []).map((u: any) => [u.id, u]));
-      const enrichedRecharges = rechList.map((r: any) => {
-        const u = userMap.get(r.user_id) as any;
-        return { ...r, user_name: u?.full_name || "—", user_email: u?.email || "—" };
-      });
-      setRecharges(enrichedRecharges);
-    } else {
-      setRecharges([]);
+      userMap = new Map((usersData || []).map((u: any) => [u.id, u]));
     }
+
+    // Enrich orders with customer info
+    const enrichedOrders = ordList.map((o: any) => {
+      const u = userMap.get(o.customer_id) as any;
+      return { ...o, customer_name: u?.full_name || "—", customer_email: u?.email || "—" };
+    });
+    setOrders(enrichedOrders);
+
+    // Enrich recharges with user info
+    const enrichedRecharges = rechList.map((r: any) => {
+      const u = userMap.get(r.user_id) as any;
+      return { ...r, user_name: u?.full_name || "—", user_email: u?.email || "—" };
+    });
+    setRecharges(enrichedRecharges);
 
     // Chip stats
     const allChips = allChipsData || [];
@@ -775,6 +786,7 @@ const Admin = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Cliente</TableHead>
                       <TableHead>Serviço</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Status</TableHead>
@@ -786,6 +798,12 @@ const Admin = () => {
                   <TableBody>
                     {orders.map((order) => (
                       <TableRow key={order.id} className={order.fraud_alert ? "bg-destructive/10" : ""}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{order.customer_name || "—"}</span>
+                            <span className="text-xs text-muted-foreground">{order.customer_email || "—"}</span>
+                          </div>
+                        </TableCell>
                         <TableCell className="font-medium">
                           {order.service?.name || "—"}
                           {order.fraud_alert && (
