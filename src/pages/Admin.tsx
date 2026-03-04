@@ -52,6 +52,8 @@ type RechargeRequest = {
   pix_proof_url: string | null;
   admin_notes: string | null;
   created_at: string;
+  user_name?: string;
+  user_email?: string;
 };
 
 type Chip = {
@@ -188,8 +190,21 @@ const Admin = () => {
 
     setServices(svcData || []);
     setOrders((ordData as any) || []);
-    setRecharges((rechData as any) || []);
     setChips((chipData as any) || []);
+
+    // Enrich recharges with user info
+    const rechList = (rechData as any) || [];
+    if (rechList.length > 0) {
+      const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
+      const userMap = new Map((usersData || []).map((u: any) => [u.id, u]));
+      const enrichedRecharges = rechList.map((r: any) => {
+        const u = userMap.get(r.user_id) as any;
+        return { ...r, user_name: u?.full_name || "—", user_email: u?.email || "—" };
+      });
+      setRecharges(enrichedRecharges);
+    } else {
+      setRecharges([]);
+    }
 
     // Chip stats
     const allChips = allChipsData || [];
@@ -855,6 +870,7 @@ const Admin = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Usuário</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Comprovante</TableHead>
@@ -865,6 +881,12 @@ const Admin = () => {
                   <TableBody>
                     {recharges.map((r) => (
                       <TableRow key={r.id} className={r.status === "pending" ? "bg-warning/5" : ""}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{r.user_name || "—"}</span>
+                            <span className="text-xs text-muted-foreground">{r.user_email || "—"}</span>
+                          </div>
+                        </TableCell>
                         <TableCell className="font-bold text-primary">{formatPrice(r.amount_cents)}</TableCell>
                         <TableCell>{getStatusBadge(r.status)}</TableCell>
                         <TableCell>
