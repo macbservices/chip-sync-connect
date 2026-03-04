@@ -405,12 +405,14 @@ const Dashboard = () => {
     toast.success("API Key copiada!");
   };
 
-  // Determine effective modem status based on last_seen_at (stale after 2 min)
+  // Determine effective modem status based on last_seen_at (stale after 5 min)
   const getEffectiveStatus = (modem: Modem) => {
-    if (modem.status === "online" && modem.last_seen_at) {
+    if (modem.last_seen_at) {
       const lastSeen = new Date(modem.last_seen_at).getTime();
       const now = Date.now();
-      if (now - lastSeen > 2 * 60 * 1000) return "offline";
+      // Consider online if seen within last 5 minutes
+      if (now - lastSeen <= 5 * 60 * 1000) return "online";
+      return "offline";
     }
     return modem.status;
   };
