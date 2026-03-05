@@ -34,10 +34,18 @@ const Auth = () => {
     const roleList = (roles || []).map((r) => r.role);
     const redirect = searchParams.get("redirect");
 
+    // Check if user is an affiliate
+    const { data: aff } = await supabase
+      .from("affiliates")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     if (redirect) {
       navigate(redirect);
+    } else if (aff) {
+      navigate("/afiliado");
     } else if (roleList.length === 0) {
-      // New Google user — needs to pick a role
       navigate("/escolher-perfil");
     } else if (roleList.includes("admin")) {
       navigate("/admin");
@@ -52,6 +60,9 @@ const Auth = () => {
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
+    // Store referral code for after OAuth callback
+    const refCode = searchParams.get("ref");
+    if (refCode) localStorage.setItem("mac_referral_code", refCode);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin + "/auth/callback",
@@ -76,11 +87,12 @@ const Auth = () => {
         if (error) throw error;
         if (data.user) await redirectAfterLogin(data.user.id);
       } else {
+        const refCode = searchParams.get("ref") || "";
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { full_name: fullName, role },
+            data: { full_name: fullName, role, referral_code: refCode },
             emailRedirectTo: window.location.origin,
           },
         });
@@ -89,6 +101,10 @@ const Auth = () => {
         if (data.user && !data.user.email_confirmed_at) {
           toast.success("Conta criada! Verifique seu e-mail para confirmar.");
         } else if (data.user) {
+          // Link referral if present
+          if (refCode) {
+            await supabase.rpc("link_referral", { _referral_code: refCode });
+          }
           navigate(role === "collaborator" ? "/dashboard" : "/store");
         }
       }

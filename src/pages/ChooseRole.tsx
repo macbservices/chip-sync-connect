@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ const ChooseRole = () => {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     const check = async () => {
@@ -66,6 +67,13 @@ const ChooseRole = () => {
           user_id: session.user.id,
           full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "",
         });
+      }
+
+      // Link referral if present
+      const refCode = searchParams.get("ref") || localStorage.getItem("mac_referral_code") || "";
+      if (refCode) {
+        await supabase.rpc("link_referral", { _referral_code: refCode });
+        localStorage.removeItem("mac_referral_code");
       }
 
       toast.success("Perfil configurado!");

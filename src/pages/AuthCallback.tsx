@@ -15,6 +15,13 @@ const AuthCallback = () => {
         return;
       }
 
+      // Link referral if code was stored
+      const refCode = localStorage.getItem("mac_referral_code");
+      if (refCode) {
+        await supabase.rpc("link_referral", { _referral_code: refCode });
+        localStorage.removeItem("mac_referral_code");
+      }
+
       // Check if user already has a role
       const { data: roles } = await supabase
         .from("user_roles")
@@ -23,8 +30,16 @@ const AuthCallback = () => {
 
       const roleList = (roles || []).map((r) => r.role);
 
-      if (roleList.length === 0) {
-        // New user from Google — needs role selection
+      // Check if user is an affiliate
+      const { data: aff } = await supabase
+        .from("affiliates")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (aff) {
+        navigate("/afiliado", { replace: true });
+      } else if (roleList.length === 0) {
         navigate("/escolher-perfil", { replace: true });
       } else if (roleList.includes("admin")) {
         navigate("/admin", { replace: true });
