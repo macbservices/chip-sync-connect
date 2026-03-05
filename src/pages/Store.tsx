@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import {
   Smartphone, Clock, Zap, ShoppingCart, LogOut, History,
-  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search, Trash2, LifeBuoy
+  Wallet, Plus, RefreshCw, MessageSquare, Copy, AlertCircle, XCircle, Search, Trash2, LifeBuoy, Link2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import macChipLogo from "@/assets/mac-chip-logo.png";
@@ -63,12 +63,16 @@ const Store = () => {
   const [smsLoading, setSmsLoading] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [orderSmsStatus, setOrderSmsStatus] = useState<Record<string, boolean>>({});
+  const [isAffiliate, setIsAffiliate] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) { navigate("/auth"); return; }
       setSession(data.session);
       fetchAll(data.session.user.id);
+      // Check affiliate status
+      supabase.from("affiliates").select("id").eq("user_id", data.session.user.id).eq("is_active", true).maybeSingle()
+        .then(({ data: aff }) => setIsAffiliate(!!aff));
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
@@ -281,6 +285,12 @@ const Store = () => {
               <LifeBuoy className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Suporte</span>
             </Button>
+            {isAffiliate && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/afiliado")}>
+                <Link2 className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">Afiliado</span>
+              </Button>
+            )}
             {isAdmin && (
               <Button variant="ghost" size="sm" onClick={() => navigate("/admin")}>
                 Admin
