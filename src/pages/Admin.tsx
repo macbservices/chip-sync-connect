@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
@@ -83,7 +83,7 @@ type UserEntry = {
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates">("orders");
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -164,6 +164,24 @@ const Admin = () => {
   const [confirmPayDialogOpen, setConfirmPayDialogOpen] = useState(false);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalEntry | null>(null);
 
+  // Affiliates
+  type AffiliateEntry = {
+    id: string;
+    user_id: string;
+    referral_code: string;
+    is_active: boolean;
+    balance_cents: number;
+    created_at: string;
+    user_name?: string;
+    user_email?: string;
+    referred_count?: number;
+    total_earned?: number;
+  };
+  const [affiliates, setAffiliates] = useState<AffiliateEntry[]>([]);
+  const [affiliatesLoading, setAffiliatesLoading] = useState(false);
+  const [newAffiliateEmail, setNewAffiliateEmail] = useState("");
+  const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false);
+
   useEffect(() => {
     if (roleLoading) return;
     if (!isAdmin) { navigate("/sem-acesso"); return; }
@@ -240,7 +258,82 @@ const Admin = () => {
     if (tab === "users" && users.length === 0) fetchUsers();
     if (tab === "report" && salesReport.length === 0) fetchSalesReport();
     if (tab === "withdrawals") fetchWithdrawals();
+    if (tab === "affiliates") fetchAffiliates();
   }, [tab]);
+
+  const fetchAffiliates = async () => {
+    setAffiliatesLoading(true);
+    const { data: affData } = await supabase.from("affiliates").select("*").order("created_at", { ascending: false });
+    const affList = (affData as any) || [];
+
+    if (affList.length > 0) {
+      const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
+      const uMap = new Map((usersData || []).map((u: any) => [u.id, u]));
+
+      // Get referred counts
+      const { data: profilesData } = await supabase.from("profiles").select("referred_by_affiliate_id");
+      const refCounts = new Map<string, number>();
+      (profilesData || []).forEach((p: any) => {
+        if (p.referred_by_affiliate_id) {
+          refCounts.set(p.referred_by_affiliate_id, (refCounts.get(p.referred_by_affiliate_id) || 0) + 1);
+        }
+      });
+
+      // Get total earned per affiliate
+      const { data: commsData } = await supabase.from("affiliate_commissions").select("affiliate_id, amount_cents");
+      const earnedMap = new Map<string, number>();
+      (commsData as any[] || []).forEach((c: any) => {
+        earnedMap.set(c.affiliate_id, (earnedMap.get(c.affiliate_id) || 0) + c.amount_cents);
+      });
+
+      const enriched = affList.map((a: any) => {
+        const u = uMap.get(a.user_id) as any;
+        return {
+          ...a,
+          user_name: u?.full_name || "—",
+          user_email: u?.email || "—",
+          referred_count: refCounts.get(a.id) || 0,
+          total_earned: earnedMap.get(a.id) || 0,
+        };
+      });
+      setAffiliates(enriched);
+    } else {
+      setAffiliates([]);
+    }
+    setAffiliatesLoading(false);
+  };
+
+  const inviteAffiliate = async () => {
+    if (!newAffiliateEmail.trim()) { toast.error("Informe o e-mail"); return; }
+    // Find user by email
+    const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
+    const user = (usersData || []).find((u: any) => u.email === newAffiliateEmail.trim());
+    if (!user) { toast.error("Usuário não encontrado com este e-mail"); return; }
+
+    // Check if already an affiliate
+    const { data: existing } = await supabase.from("affiliates").select("id").eq("user_id", user.id).maybeSingle();
+    if (existing) { toast.error("Este usuário já é um afiliado"); return; }
+
+    const { error } = await supabase.from("affiliates").insert({ user_id: user.id });
+    if (error) { toast.error(error.message); return; }
+
+    toast.success("Afiliado adicionado com sucesso!");
+    setAffiliateDialogOpen(false);
+    setNewAffiliateEmail("");
+    fetchAffiliates();
+  };
+
+  const toggleAffiliate = async (id: string, isActive: boolean) => {
+    await supabase.from("affiliates").update({ is_active: !isActive }).eq("id", id);
+    toast.success(isActive ? "Afiliado desativado" : "Afiliado ativado");
+    fetchAffiliates();
+  };
+
+  const removeAffiliate = async (id: string) => {
+    await supabase.from("affiliates").delete().eq("id", id);
+    toast.success("Afiliado removido");
+    fetchAffiliates();
+  };
 
   const fetchWithdrawals = async () => {
     setWithdrawalsLoading(true);
@@ -655,6 +748,10 @@ const Admin = () => {
                   {withdrawalRequests.filter(w => w.status === "pending").length}
                 </span>
               )}
+            </Button>
+            <Button variant={tab === "affiliates" ? "default" : "ghost"} size="sm" onClick={() => setTab("affiliates")}>
+              <Link2 className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Afiliados</span>
             </Button>
             <NotificationBell />
             <DarkModeToggle />
@@ -1265,7 +1362,119 @@ const Admin = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* ====== AFFILIATES TAB ====== */}
+        {tab === "affiliates" && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Gerenciar Afiliados</CardTitle>
+                <CardDescription>Convide e gerencie afiliados que indicam novos usuários</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setAffiliateDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Convidar Afiliado
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {affiliatesLoading ? (
+                <div className="flex justify-center py-12">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : affiliates.length === 0 ? (
+                <div className="text-center text-muted-foreground py-12">
+                  <Link2 className="mx-auto h-10 w-10 mb-3 opacity-30" />
+                  <p>Nenhum afiliado cadastrado.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Afiliado</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Indicados</TableHead>
+                      <TableHead>Total Ganho</TableHead>
+                      <TableHead>Saldo</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {affiliates.map((aff) => (
+                      <TableRow key={aff.id}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{aff.user_name}</span>
+                            <span className="text-xs text-muted-foreground">{aff.user_email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{aff.referral_code}</code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/auth?ref=${aff.referral_code}`);
+                                toast.success("Link copiado!");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>{aff.referred_count || 0}</TableCell>
+                        <TableCell className="font-semibold">{formatPrice(aff.total_earned || 0)}</TableCell>
+                        <TableCell className="font-semibold text-primary">{formatPrice(aff.balance_cents)}</TableCell>
+                        <TableCell>
+                          <Badge variant={aff.is_active ? "default" : "secondary"}>
+                            {aff.is_active ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button variant="ghost" size="icon" onClick={() => toggleAffiliate(aff.id, aff.is_active)} title={aff.is_active ? "Desativar" : "Ativar"}>
+                              {aff.is_active ? <X className="h-4 w-4 text-muted-foreground" /> : <Check className="h-4 w-4" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeAffiliate(aff.id)} title="Remover">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
+
+      {/* Affiliate Invite Dialog */}
+      <Dialog open={affiliateDialogOpen} onOpenChange={setAffiliateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convidar Afiliado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>E-mail do usuário *</Label>
+              <Input
+                type="email"
+                value={newAffiliateEmail}
+                onChange={(e) => setNewAffiliateEmail(e.target.value)}
+                placeholder="email@exemplo.com"
+              />
+              <p className="text-xs text-muted-foreground">O usuário já deve ter uma conta na plataforma</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAffiliateDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={inviteAffiliate} className="flex-1">Convidar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Service Dialog */}
       <Dialog open={svcDialogOpen} onOpenChange={setSvcDialogOpen}>

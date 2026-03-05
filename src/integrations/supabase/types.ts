@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      affiliate_commissions: {
+        Row: {
+          affiliate_id: string
+          amount_cents: number
+          commission_type: string
+          created_at: string
+          id: string
+          order_id: string | null
+          referred_user_id: string
+        }
+        Insert: {
+          affiliate_id: string
+          amount_cents?: number
+          commission_type?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          referred_user_id: string
+        }
+        Update: {
+          affiliate_id?: string
+          amount_cents?: number
+          commission_type?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          referred_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_commissions_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_commissions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      affiliates: {
+        Row: {
+          balance_cents: number
+          created_at: string
+          id: string
+          is_active: boolean
+          referral_code: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance_cents?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          referral_code?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance_cents?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          referral_code?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chip_activations: {
         Row: {
           activation_count: number
@@ -288,6 +363,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          referred_by_affiliate_id: string | null
           updated_at: string
           user_id: string
         }
@@ -296,6 +372,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          referred_by_affiliate_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -304,10 +381,19 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          referred_by_affiliate_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_affiliate_id_fkey"
+            columns: ["referred_by_affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recharge_requests: {
         Row: {
@@ -577,6 +663,7 @@ export type Database = {
         Returns: undefined
       }
       admin_reset_all_chip_activations: { Args: never; Returns: undefined }
+      affiliate_withdraw: { Args: { _amount_cents: number }; Returns: string }
       approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
       auto_cancel_stale_orders: { Args: never; Returns: number }
       cancel_order_refund: { Args: { _order_id: string }; Returns: undefined }
@@ -592,6 +679,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      link_referral: { Args: { _referral_code: string }; Returns: undefined }
       purchase_service: { Args: { _service_id: string }; Returns: string }
     }
     Enums: {

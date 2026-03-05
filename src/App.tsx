@@ -22,6 +22,7 @@ import Cookies from "./pages/Cookies";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Support from "./pages/Support";
+import Affiliate from "./pages/Affiliate";
 
 const queryClient = new QueryClient();
 
@@ -106,6 +107,9 @@ const App = () => (
               </RouteGuard>
             }
           />
+
+          {/* Affiliate page (no RouteGuard, checks internally) */}
+          <Route path="/afiliado" element={<Affiliate />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
