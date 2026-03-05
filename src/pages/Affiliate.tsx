@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Copy, DollarSign, Users, TrendingUp, LogOut, ArrowDownToLine, Wallet } from "lucide-react";
+import { Copy, DollarSign, Users, TrendingUp, LogOut, ArrowDownToLine, Wallet, LayoutDashboard, ShoppingCart, Shield } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
@@ -40,6 +40,7 @@ const Affiliate = () => {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -48,6 +49,10 @@ const Affiliate = () => {
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/auth"); return; }
+
+    // Fetch user roles
+    const { data: rolesData } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+    setUserRoles((rolesData || []).map((r: any) => r.role));
 
     const { data: aff } = await supabase
       .from("affiliates")
@@ -130,6 +135,24 @@ const Affiliate = () => {
             <span className="font-bold text-lg">Afiliados</span>
           </div>
           <div className="flex items-center gap-1">
+            {userRoles.includes("collaborator") && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+                <LayoutDashboard className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">Colaborador</span>
+              </Button>
+            )}
+            {userRoles.includes("customer") && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/store")}>
+                <ShoppingCart className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">Loja</span>
+              </Button>
+            )}
+            {userRoles.includes("admin") && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/admin")}>
+                <Shield className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">Admin</span>
+              </Button>
+            )}
             <NotificationBell />
             <DarkModeToggle />
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
