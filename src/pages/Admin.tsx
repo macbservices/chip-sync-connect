@@ -315,26 +315,34 @@ const Admin = () => {
     if (!newAffiliateEmail.trim()) { toast.error("Informe o e-mail"); return; }
     if (!newAffiliatePassword || newAffiliatePassword.length < 6) { toast.error("Senha deve ter no mínimo 6 caracteres"); return; }
 
-    // Create user account via edge function
-    const { data: createData, error: createError } = await supabase.functions.invoke("manage-users", {
-      body: {
-        action: "create",
-        email: newAffiliateEmail.trim(),
-        password: newAffiliatePassword,
-        full_name: newAffiliateName.trim(),
-        role: "customer",
-      },
-    });
-    if (createError || createData?.error) {
-      toast.error(createData?.error || "Erro ao criar conta do afiliado");
-      return;
+    // Check if user already exists
+    const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
+    const existingUser = (usersData || []).find((u: any) => u.email === newAffiliateEmail.trim());
+
+    let userId: string;
+
+    if (existingUser) {
+      // User already exists, check if already an affiliate
+      const { data: existingAff } = await supabase.from("affiliates").select("id").eq("user_id", existingUser.id).maybeSingle();
+      if (existingAff) { toast.error("Este usuário já é um afiliado"); return; }
+      userId = existingUser.id;
+    } else {
+      // Create new user account
+      const { data: createData, error: createError } = await supabase.functions.invoke("manage-users", {
+        body: {
+          action: "create",
+          email: newAffiliateEmail.trim(),
+          password: newAffiliatePassword,
+          full_name: newAffiliateName.trim(),
+          role: "customer",
+        },
+      });
+      if (createError || createData?.error) {
+        toast.error(createData?.error || "Erro ao criar conta do afiliado");
+        return;
+      }
+      userId = createData.id;
     }
-
-    const userId = createData.id;
-
-    // Check if already an affiliate
-    const { data: existing } = await supabase.from("affiliates").select("id").eq("user_id", userId).maybeSingle();
-    if (existing) { toast.error("Este usuário já é um afiliado"); return; }
 
     const { error } = await supabase.from("affiliates").insert({ user_id: userId });
     if (error) { toast.error(error.message); return; }
