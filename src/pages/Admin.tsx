@@ -265,7 +265,7 @@ const Admin = () => {
   };
 
   useEffect(() => {
-    if (tab === "users" && users.length === 0) fetchUsers();
+    if (tab === "users" && users.length === 0) { fetchUsers(); fetchAffiliates(); }
     if (tab === "report" && salesReport.length === 0) fetchSalesReport();
     if (tab === "withdrawals") fetchWithdrawals();
     if (tab === "affiliates") fetchAffiliates();
@@ -1213,6 +1213,30 @@ const Admin = () => {
                             >
                               <KeyRound className="h-4 w-4 text-muted-foreground" />
                             </Button>
+                            {affiliates.some((a) => a.user_id === u.id) ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Já é afiliado"
+                                disabled
+                              >
+                                <Link2 className="h-4 w-4 text-primary" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Tornar afiliado"
+                                onClick={async () => {
+                                  const { error } = await supabase.from("affiliates").insert({ user_id: u.id });
+                                  if (error) { toast.error(error.message); return; }
+                                  toast.success("Usuário adicionado como afiliado!");
+                                  fetchAffiliates();
+                                }}
+                              >
+                                <Link2 className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
