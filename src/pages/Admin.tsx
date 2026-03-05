@@ -1217,8 +1217,16 @@ const Admin = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                title="Já é afiliado"
-                                disabled
+                                title="Remover afiliado"
+                                onClick={async () => {
+                                  if (!confirm("Deseja remover o status de afiliado deste usuário?")) return;
+                                  const aff = affiliates.find((a) => a.user_id === u.id);
+                                  if (!aff) return;
+                                  const { error } = await supabase.from("affiliates").delete().eq("id", aff.id);
+                                  if (error) { toast.error(error.message); return; }
+                                  toast.success("Afiliado removido!");
+                                  fetchAffiliates();
+                                }}
                               >
                                 <Link2 className="h-4 w-4 text-primary" />
                               </Button>
