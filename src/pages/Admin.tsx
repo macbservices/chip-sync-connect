@@ -181,6 +181,12 @@ const Admin = () => {
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [newAffiliateEmail, setNewAffiliateEmail] = useState("");
   const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false);
+  const [affBalanceDialogOpen, setAffBalanceDialogOpen] = useState(false);
+  const [affDeductDialogOpen, setAffDeductDialogOpen] = useState(false);
+  const [selectedAffiliate, setSelectedAffiliate] = useState<AffiliateEntry | null>(null);
+  const [affBalanceAmount, setAffBalanceAmount] = useState("");
+  const [affEditDialogOpen, setAffEditDialogOpen] = useState(false);
+  const [affEditBalance, setAffEditBalance] = useState("");
 
   useEffect(() => {
     if (roleLoading) return;
@@ -332,6 +338,40 @@ const Admin = () => {
   const removeAffiliate = async (id: string) => {
     await supabase.from("affiliates").delete().eq("id", id);
     toast.success("Afiliado removido");
+    fetchAffiliates();
+  };
+
+  const addAffiliateBalance = async () => {
+    if (!selectedAffiliate) return;
+    const amount = Math.round(parseFloat(affBalanceAmount) * 100);
+    if (isNaN(amount) || amount <= 0) { toast.error("Valor inválido"); return; }
+    await supabase.from("affiliates").update({ balance_cents: selectedAffiliate.balance_cents + amount }).eq("id", selectedAffiliate.id);
+    toast.success("Saldo adicionado!");
+    setAffBalanceDialogOpen(false);
+    setAffBalanceAmount("");
+    fetchAffiliates();
+  };
+
+  const deductAffiliateBalance = async () => {
+    if (!selectedAffiliate) return;
+    const amount = Math.round(parseFloat(affBalanceAmount) * 100);
+    if (isNaN(amount) || amount <= 0) { toast.error("Valor inválido"); return; }
+    if (amount > selectedAffiliate.balance_cents) { toast.error("Saldo insuficiente"); return; }
+    await supabase.from("affiliates").update({ balance_cents: selectedAffiliate.balance_cents - amount }).eq("id", selectedAffiliate.id);
+    toast.success("Saldo deduzido!");
+    setAffDeductDialogOpen(false);
+    setAffBalanceAmount("");
+    fetchAffiliates();
+  };
+
+  const editAffiliateBalance = async () => {
+    if (!selectedAffiliate) return;
+    const amount = Math.round(parseFloat(affEditBalance) * 100);
+    if (isNaN(amount) || amount < 0) { toast.error("Valor inválido"); return; }
+    await supabase.from("affiliates").update({ balance_cents: amount }).eq("id", selectedAffiliate.id);
+    toast.success("Saldo atualizado!");
+    setAffEditDialogOpen(false);
+    setAffEditBalance("");
     fetchAffiliates();
   };
 
@@ -1433,6 +1473,15 @@ const Admin = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
+                            <Button variant="ghost" size="icon" onClick={() => { setSelectedAffiliate(aff); setAffBalanceAmount(""); setAffBalanceDialogOpen(true); }} title="Adicionar saldo">
+                              <Plus className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setSelectedAffiliate(aff); setAffBalanceAmount(""); setAffDeductDialogOpen(true); }} title="Deduzir saldo">
+                              <ArrowDownToLine className="h-4 w-4 text-destructive" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setSelectedAffiliate(aff); setAffEditBalance((aff.balance_cents / 100).toFixed(2)); setAffEditDialogOpen(true); }} title="Editar saldo">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => toggleAffiliate(aff.id, aff.is_active)} title={aff.is_active ? "Desativar" : "Ativar"}>
                               {aff.is_active ? <X className="h-4 w-4 text-muted-foreground" /> : <Check className="h-4 w-4" />}
                             </Button>
@@ -1476,7 +1525,84 @@ const Admin = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Service Dialog */}
+      {/* Affiliate Add Balance Dialog */}
+      <Dialog open={affBalanceDialogOpen} onOpenChange={setAffBalanceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Saldo ao Afiliado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{selectedAffiliate?.user_name}</p>
+              <p className="text-muted-foreground">{selectedAffiliate?.user_email}</p>
+              <p className="text-sm mt-1">Saldo atual: <span className="font-bold text-primary">{formatPrice(selectedAffiliate?.balance_cents || 0)}</span></p>
+            </div>
+            <div className="space-y-2">
+              <Label>Valor a adicionar (R$)</Label>
+              <Input type="number" step="0.01" min="0.01" value={affBalanceAmount} onChange={(e) => setAffBalanceAmount(e.target.value)} placeholder="10.00" />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAffBalanceDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={addAffiliateBalance} className="flex-1">
+                <Plus className="mr-2 h-4 w-4" /> Adicionar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Affiliate Deduct Balance Dialog */}
+      <Dialog open={affDeductDialogOpen} onOpenChange={setAffDeductDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deduzir Saldo do Afiliado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{selectedAffiliate?.user_name}</p>
+              <p className="text-muted-foreground">{selectedAffiliate?.user_email}</p>
+              <p className="text-sm mt-1">Saldo atual: <span className="font-bold text-primary">{formatPrice(selectedAffiliate?.balance_cents || 0)}</span></p>
+            </div>
+            <div className="space-y-2">
+              <Label>Valor a deduzir (R$)</Label>
+              <Input type="number" step="0.01" min="0.01" value={affBalanceAmount} onChange={(e) => setAffBalanceAmount(e.target.value)} placeholder="10.00" />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAffDeductDialogOpen(false)}>Cancelar</Button>
+              <Button variant="destructive" onClick={deductAffiliateBalance} className="flex-1">
+                <ArrowDownToLine className="mr-2 h-4 w-4" /> Deduzir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Affiliate Edit Balance Dialog */}
+      <Dialog open={affEditDialogOpen} onOpenChange={setAffEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Saldo do Afiliado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <p className="font-medium">{selectedAffiliate?.user_name}</p>
+              <p className="text-muted-foreground">{selectedAffiliate?.user_email}</p>
+              <p className="text-sm mt-1">Saldo atual: <span className="font-bold text-primary">{formatPrice(selectedAffiliate?.balance_cents || 0)}</span></p>
+            </div>
+            <div className="space-y-2">
+              <Label>Novo saldo (R$)</Label>
+              <Input type="number" step="0.01" min="0" value={affEditBalance} onChange={(e) => setAffEditBalance(e.target.value)} placeholder="0.00" />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAffEditDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={editAffiliateBalance} className="flex-1">
+                <Pencil className="mr-2 h-4 w-4" /> Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={svcDialogOpen} onOpenChange={setSvcDialogOpen}>
         <DialogContent>
           <DialogHeader>
