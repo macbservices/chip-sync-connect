@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   Wallet,
   ArrowUpRight,
+  Link2,
 } from "lucide-react";
 
 type Location = {
@@ -93,7 +94,8 @@ const Dashboard = () => {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawLoading, setWithdrawLoading] = useState(false);
-  const [ownerMap, setOwnerMap] = useState<Record<string, { name: string; email: string }>>({}); 
+  const [ownerMap, setOwnerMap] = useState<Record<string, { name: string; email: string }>>({});
+  const [isAffiliate, setIsAffiliate] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -145,6 +147,10 @@ const Dashboard = () => {
   const checkAuth = async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) navigate("/auth");
+    else {
+      supabase.from("affiliates").select("id").eq("user_id", data.session.user.id).eq("is_active", true).maybeSingle()
+        .then(({ data: aff }) => setIsAffiliate(!!aff));
+    }
   };
 
   const fetchLocations = async () => {
@@ -490,6 +496,12 @@ const Dashboard = () => {
               <Wallet className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Saldo</span>
             </Button>
+            {isAffiliate && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/afiliado")}>
+                <Link2 className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">Afiliado</span>
+              </Button>
+            )}
             <NotificationBell />
             <DarkModeToggle />
             <Button variant="ghost" size="sm" onClick={handleLogout}>
