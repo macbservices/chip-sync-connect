@@ -180,6 +180,8 @@ const Admin = () => {
   const [affiliates, setAffiliates] = useState<AffiliateEntry[]>([]);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [newAffiliateEmail, setNewAffiliateEmail] = useState("");
+  const [newAffiliateName, setNewAffiliateName] = useState("");
+  const [newAffiliatePassword, setNewAffiliatePassword] = useState("");
   const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false);
   const [affBalanceDialogOpen, setAffBalanceDialogOpen] = useState(false);
   const [affDeductDialogOpen, setAffDeductDialogOpen] = useState(false);
@@ -309,23 +311,39 @@ const Admin = () => {
     setAffiliatesLoading(false);
   };
 
-  const inviteAffiliate = async () => {
+  const createAffiliate = async () => {
     if (!newAffiliateEmail.trim()) { toast.error("Informe o e-mail"); return; }
-    // Find user by email
-    const { data: usersData } = await supabase.functions.invoke("manage-users", { body: { action: "list" } });
-    const user = (usersData || []).find((u: any) => u.email === newAffiliateEmail.trim());
-    if (!user) { toast.error("Usuário não encontrado com este e-mail"); return; }
+    if (!newAffiliatePassword || newAffiliatePassword.length < 6) { toast.error("Senha deve ter no mínimo 6 caracteres"); return; }
+
+    // Create user account via edge function
+    const { data: createData, error: createError } = await supabase.functions.invoke("manage-users", {
+      body: {
+        action: "create",
+        email: newAffiliateEmail.trim(),
+        password: newAffiliatePassword,
+        full_name: newAffiliateName.trim(),
+        role: "customer",
+      },
+    });
+    if (createError || createData?.error) {
+      toast.error(createData?.error || "Erro ao criar conta do afiliado");
+      return;
+    }
+
+    const userId = createData.id;
 
     // Check if already an affiliate
-    const { data: existing } = await supabase.from("affiliates").select("id").eq("user_id", user.id).maybeSingle();
+    const { data: existing } = await supabase.from("affiliates").select("id").eq("user_id", userId).maybeSingle();
     if (existing) { toast.error("Este usuário já é um afiliado"); return; }
 
-    const { error } = await supabase.from("affiliates").insert({ user_id: user.id });
+    const { error } = await supabase.from("affiliates").insert({ user_id: userId });
     if (error) { toast.error(error.message); return; }
 
-    toast.success("Afiliado adicionado com sucesso!");
+    toast.success("Afiliado cadastrado com sucesso!");
     setAffiliateDialogOpen(false);
     setNewAffiliateEmail("");
+    setNewAffiliateName("");
+    setNewAffiliatePassword("");
     fetchAffiliates();
   };
 
@@ -1409,10 +1427,10 @@ const Admin = () => {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Gerenciar Afiliados</CardTitle>
-                <CardDescription>Convide e gerencie afiliados que indicam novos usuários</CardDescription>
+                <CardDescription>Cadastre e gerencie afiliados que indicam novos usuários</CardDescription>
               </div>
               <Button size="sm" onClick={() => setAffiliateDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" /> Convidar Afiliado
+                <Plus className="mr-2 h-4 w-4" /> Cadastrar Afiliado
               </Button>
             </CardHeader>
             <CardContent>
@@ -1500,26 +1518,44 @@ const Admin = () => {
         )}
       </main>
 
-      {/* Affiliate Invite Dialog */}
+      {/* Affiliate Create Dialog */}
       <Dialog open={affiliateDialogOpen} onOpenChange={setAffiliateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Convidar Afiliado</DialogTitle>
+            <DialogTitle>Cadastrar Afiliado</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>E-mail do usuário *</Label>
+              <Label>Nome completo</Label>
+              <Input
+                value={newAffiliateName}
+                onChange={(e) => setNewAffiliateName(e.target.value)}
+                placeholder="Nome do afiliado"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>E-mail *</Label>
               <Input
                 type="email"
                 value={newAffiliateEmail}
                 onChange={(e) => setNewAffiliateEmail(e.target.value)}
                 placeholder="email@exemplo.com"
               />
-              <p className="text-xs text-muted-foreground">O usuário já deve ter uma conta na plataforma</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Senha *</Label>
+              <Input
+                type="password"
+                value={newAffiliatePassword}
+                onChange={(e) => setNewAffiliatePassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+              />
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setAffiliateDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={inviteAffiliate} className="flex-1">Convidar</Button>
+              <Button onClick={createAffiliate} className="flex-1">
+                <Plus className="mr-2 h-4 w-4" /> Cadastrar
+              </Button>
             </div>
           </div>
         </DialogContent>
