@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy, Wifi
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
@@ -829,14 +829,23 @@ const Admin = () => {
       <main className="flex-1 container py-6 space-y-6">
 
         {/* Chip Stats Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Card className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
+              <Wifi className="h-5 w-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{chipStats.totalOnline}</p>
+              <p className="text-xs text-muted-foreground">Chips Online</p>
+            </div>
+          </Card>
           <Card className="p-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
               <Smartphone className="h-5 w-5 text-accent" />
             </div>
             <div>
               <p className="text-2xl font-bold">{chipStats.totalActive}</p>
-              <p className="text-xs text-muted-foreground">Chips Ativos</p>
+              <p className="text-xs text-muted-foreground">Chips Cadastrados</p>
             </div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
