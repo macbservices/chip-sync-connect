@@ -336,19 +336,28 @@ Deno.serve(async (req) => {
           const chipOperator = chip.operator && isValidString(chip.operator, 50) ? sanitizeString(chip.operator, 50) : null;
           const chipStatus = chip.status && isValidString(chip.status, 20) ? sanitizeString(chip.status, 20) : "active";
 
+          // First check if chip exists anywhere in this location (may have moved ports)
+          const { data: locationModems } = await supabase
+            .from("modems")
+            .select("id")
+            .eq("location_id", location.id);
+          const locModemIds = (locationModems || []).map((m) => m.id);
+
           const { data: existingChip } = await supabase
             .from("chips")
-            .select("id")
-            .eq("modem_id", modemId)
+            .select("id, modem_id")
             .eq("phone_number", phoneNumber)
+            .in("modem_id", locModemIds)
             .order("created_at", { ascending: true })
             .limit(1)
             .maybeSingle();
 
           if (existingChip) {
+            // Update chip and move to current modem if port changed
             await supabase
               .from("chips")
               .update({
+                modem_id: modemId,
                 iccid: chipIccid,
                 operator: chipOperator,
                 status: chipStatus,
