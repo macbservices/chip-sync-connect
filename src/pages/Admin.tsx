@@ -214,8 +214,8 @@ const Admin = () => {
       supabase.from("orders").select("*, service:services(name, type)").order("created_at", { ascending: false }) as any,
       supabase.from("recharge_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("chips").select("id, phone_number, operator, status").in("status", ["active"]),
-      supabase.from("chips").select("id, status"),
-      supabase.from("chips").select("id, status, modem_id").eq("status", "active"),
+      supabase.from("chips").select("id, status, modem_id, modems!inner(id, location_id, locations:locations!inner(id, is_active))") as any,
+      supabase.from("chips").select("id, status, modem_id, modems!inner(id, last_seen_at, location_id, locations:locations!inner(id, is_active))").eq("status", "active") as any,
     ]);
 
     setServices(svcData || []);
@@ -245,11 +245,14 @@ const Admin = () => {
     });
     setRecharges(enrichedRecharges);
 
-    // Chip stats
-    const allChips = allChipsData || [];
+    // Chip stats — only count chips linked to active locations
+    const allChips = (allChipsData || []).filter((c: any) => c.modems?.locations);
     const activeChips = allChips.filter((c: any) => c.status === "active").length;
     const exhaustedChips = allChips.filter((c: any) => c.status === "exhausted").length;
-    setChipStats({ totalActive: activeChips, totalExhausted: exhaustedChips, totalOnline: (onlineChipsData || []).length });
+    // Online chips: active chips on modems seen in last 5 min
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const onlineChips = (onlineChipsData || []).filter((c: any) => c.modems?.locations && c.modems?.last_seen_at && c.modems.last_seen_at > fiveMinAgo).length;
+    setChipStats({ totalActive: activeChips, totalExhausted: exhaustedChips, totalOnline: onlineChips });
 
     setLoading(false);
   };
