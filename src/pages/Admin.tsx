@@ -245,11 +245,14 @@ const Admin = () => {
     });
     setRecharges(enrichedRecharges);
 
-    // Chip stats
-    const allChips = allChipsData || [];
+    // Chip stats — only count chips linked to active locations
+    const allChips = (allChipsData || []).filter((c: any) => c.modems?.locations);
     const activeChips = allChips.filter((c: any) => c.status === "active").length;
     const exhaustedChips = allChips.filter((c: any) => c.status === "exhausted").length;
-    setChipStats({ totalActive: activeChips, totalExhausted: exhaustedChips, totalOnline: (onlineChipsData || []).length });
+    // Online chips: active chips on modems seen in last 5 min
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const onlineChips = (onlineChipsData || []).filter((c: any) => c.modems?.locations && c.modems?.last_seen_at && c.modems.last_seen_at > fiveMinAgo).length;
+    setChipStats({ totalActive: activeChips, totalExhausted: exhaustedChips, totalOnline: onlineChips });
 
     setLoading(false);
   };
