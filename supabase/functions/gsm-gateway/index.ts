@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
           .select("id")
           .eq("location_id", location.id)
           .eq("port_name", portName)
-          .single();
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
 
         let modemId: string;
 
