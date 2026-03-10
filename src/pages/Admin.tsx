@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy, Wifi
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
