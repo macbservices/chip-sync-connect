@@ -214,8 +214,8 @@ const Admin = () => {
       supabase.from("orders").select("*, service:services(name, type)").order("created_at", { ascending: false }) as any,
       supabase.from("recharge_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("chips").select("id, phone_number, operator, status").in("status", ["active"]),
-      supabase.from("chips").select("id, status"),
-      supabase.from("chips").select("id, status, modem_id").eq("status", "active"),
+      supabase.from("chips").select("id, status, modem_id, modems!inner(id, location_id, locations:locations!inner(id, is_active))") as any,
+      supabase.from("chips").select("id, status, modem_id, modems!inner(id, last_seen_at, location_id, locations:locations!inner(id, is_active))").eq("status", "active") as any,
     ]);
 
     setServices(svcData || []);
