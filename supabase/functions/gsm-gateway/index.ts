@@ -341,7 +341,9 @@ Deno.serve(async (req) => {
             .select("id")
             .eq("modem_id", modemId)
             .eq("phone_number", phoneNumber)
-            .single();
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
 
           if (existingChip) {
             await supabase
