@@ -821,6 +821,10 @@ const Admin = () => {
               <Link2 className="mr-1.5 h-4 w-4" />
               <span className="hidden sm:inline">Afiliados</span>
             </Button>
+            <Button variant={tab === "app" ? "default" : "ghost"} size="sm" onClick={() => setTab("app")}>
+              <Smartphone className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">App</span>
+            </Button>
             <NotificationBell />
             <DarkModeToggle />
             <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}>
