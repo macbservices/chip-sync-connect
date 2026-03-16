@@ -86,7 +86,7 @@ const Dashboard = () => {
   const [newLocationDesc, setNewLocationDesc] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"chipeiras" | "relatorio" | "saldo">("chipeiras");
+  const [tab, setTab] = useState<"chipeiras" | "relatorio" | "saldo" | "download">("chipeiras");
   const [weeklySales, setWeeklySales] = useState<WeeklySale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
 
