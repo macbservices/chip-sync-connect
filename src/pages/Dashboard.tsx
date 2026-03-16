@@ -85,8 +85,8 @@ const DownloadAppSection = () => {
       const { data } = await supabase.storage.from("app-downloads").list("", { limit: 1, sortBy: { column: "created_at", order: "desc" } });
       if (data && data.length > 0) {
         setAppName(data[0].name);
-        const { data: urlData } = supabase.storage.from("app-downloads").getPublicUrl(data[0].name);
-        setAppUrl(urlData?.publicUrl || null);
+        const { data: urlData } = await supabase.storage.from("app-downloads").createSignedUrl(data[0].name, 3600);
+        setAppUrl(urlData?.signedUrl || null);
       }
       setLoading(false);
     };
