@@ -75,6 +75,64 @@ type WeeklySale = {
   location_name: string;
 };
 
+const DownloadAppSection = () => {
+  const [appUrl, setAppUrl] = useState<string | null>(null);
+  const [appName, setAppName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchApp = async () => {
+      const { data } = await supabase.storage.from("app-downloads").list("", { limit: 1, sortBy: { column: "created_at", order: "desc" } });
+      if (data && data.length > 0) {
+        setAppName(data[0].name);
+        const { data: urlData } = supabase.storage.from("app-downloads").getPublicUrl(data[0].name);
+        setAppUrl(urlData?.publicUrl || null);
+      }
+      setLoading(false);
+    };
+    fetchApp();
+  }, []);
+
+  if (loading) return <div className="flex justify-center py-12"><RefreshCw className="h-6 w-6 animate-spin text-primary" /></div>;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Download className="h-5 w-5" /> Download do Aplicativo
+        </CardTitle>
+        <CardDescription>
+          Baixe o aplicativo para conectar suas chipeiras ao sistema.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {appUrl ? (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10">
+              <Smartphone className="h-10 w-10 text-primary" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium text-lg">{appName}</p>
+              <p className="text-sm text-muted-foreground mt-1">Clique para baixar o aplicativo</p>
+            </div>
+            <Button size="lg" asChild>
+              <a href={appUrl} download>
+                <Download className="mr-2 h-5 w-5" /> Baixar Aplicativo
+              </a>
+            </Button>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Smartphone className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>Nenhum aplicativo disponível para download no momento.</p>
+            <p className="text-sm mt-1">Entre em contato com o administrador.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { isAdmin } = useRole();
