@@ -497,6 +497,14 @@ const Dashboard = () => {
               <Wallet className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Saldo</span>
             </Button>
+            <Button
+              variant={tab === "download" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setTab("download")}
+            >
+              <Download className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">App</span>
+            </Button>
             {isAffiliate && (
               <Button variant="ghost" size="sm" onClick={() => navigate("/afiliado")}>
                 <Link2 className="mr-1 h-4 w-4" />
