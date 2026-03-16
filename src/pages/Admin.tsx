@@ -83,7 +83,11 @@ type UserEntry = {
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates" | "app">("orders");
+  const [appFile, setAppFile] = useState<File | null>(null);
+  const [appUploading, setAppUploading] = useState(false);
+  const [appDownloadUrl, setAppDownloadUrl] = useState<string | null>(null);
+  const [appFileName, setAppFileName] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -272,7 +276,45 @@ const Admin = () => {
     if (tab === "report" && salesReport.length === 0) fetchSalesReport();
     if (tab === "withdrawals") fetchWithdrawals();
     if (tab === "affiliates") fetchAffiliates();
+    if (tab === "app") fetchAppFile();
   }, [tab]);
+
+  const fetchAppFile = async () => {
+    const { data } = await supabase.storage.from("app-downloads").list("", { limit: 1, sortBy: { column: "created_at", order: "desc" } });
+    if (data && data.length > 0) {
+      const file = data[0];
+      setAppFileName(file.name);
+      const { data: urlData } = supabase.storage.from("app-downloads").getPublicUrl(file.name);
+      setAppDownloadUrl(urlData?.publicUrl || null);
+    } else {
+      setAppFileName(null);
+      setAppDownloadUrl(null);
+    }
+  };
+
+  const uploadAppFile = async () => {
+    if (!appFile) { toast.error("Selecione um arquivo"); return; }
+    setAppUploading(true);
+    // Delete existing files first
+    const { data: existingFiles } = await supabase.storage.from("app-downloads").list("");
+    if (existingFiles && existingFiles.length > 0) {
+      await supabase.storage.from("app-downloads").remove(existingFiles.map(f => f.name));
+    }
+    const { error } = await supabase.storage.from("app-downloads").upload(appFile.name, appFile, { upsert: true });
+    if (error) { toast.error("Erro ao fazer upload: " + error.message); setAppUploading(false); return; }
+    toast.success("Aplicativo enviado com sucesso!");
+    setAppFile(null);
+    setAppUploading(false);
+    fetchAppFile();
+  };
+
+  const deleteAppFile = async () => {
+    if (!appFileName) return;
+    await supabase.storage.from("app-downloads").remove([appFileName]);
+    toast.success("Arquivo removido");
+    setAppFileName(null);
+    setAppDownloadUrl(null);
+  };
 
   const fetchAffiliates = async () => {
     setAffiliatesLoading(true);
@@ -816,6 +858,10 @@ const Admin = () => {
             <Button variant={tab === "affiliates" ? "default" : "ghost"} size="sm" onClick={() => setTab("affiliates")}>
               <Link2 className="mr-1.5 h-4 w-4" />
               <span className="hidden sm:inline">Afiliados</span>
+            </Button>
+            <Button variant={tab === "app" ? "default" : "ghost"} size="sm" onClick={() => setTab("app")}>
+              <Smartphone className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">App</span>
             </Button>
             <NotificationBell />
             <DarkModeToggle />
@@ -1560,6 +1606,52 @@ const Admin = () => {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ====== APP TAB ====== */}
+        {tab === "app" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5" /> Aplicativo para Colaboradores
+              </CardTitle>
+              <CardDescription>
+                Faça upload do executável (.exe) que ficará disponível para download no painel dos colaboradores.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {appFileName && appDownloadUrl && (
+                <div className="rounded-lg border bg-muted/50 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Arquivo atual:</p>
+                    <p className="text-sm text-muted-foreground">{appFileName}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={appDownloadUrl} download>
+                        <ArrowDownToLine className="mr-2 h-4 w-4" /> Download
+                      </a>
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={deleteAppFile}>
+                      <Trash2 className="mr-2 h-4 w-4" /> Remover
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <div className="space-y-3">
+                <Label>Selecionar novo arquivo</Label>
+                <Input
+                  type="file"
+                  accept=".exe,.zip,.msi"
+                  onChange={(e) => setAppFile(e.target.files?.[0] || null)}
+                />
+                <Button onClick={uploadAppFile} disabled={!appFile || appUploading}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  {appUploading ? "Enviando..." : "Fazer Upload"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
