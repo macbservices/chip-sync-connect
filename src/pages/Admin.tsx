@@ -83,7 +83,11 @@ type UserEntry = {
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates" | "app">("orders");
+  const [appFile, setAppFile] = useState<File | null>(null);
+  const [appUploading, setAppUploading] = useState(false);
+  const [appDownloadUrl, setAppDownloadUrl] = useState<string | null>(null);
+  const [appFileName, setAppFileName] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
