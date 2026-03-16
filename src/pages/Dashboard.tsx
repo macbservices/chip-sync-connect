@@ -1001,6 +1001,11 @@ const Dashboard = () => {
             </Card>
           </>
         )}
+
+        {/* ===== DOWNLOAD TAB ===== */}
+        {tab === "download" && (
+          <DownloadAppSection />
+        )}
       </main>
     </div>
   );
