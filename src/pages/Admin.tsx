@@ -284,8 +284,8 @@ const Admin = () => {
     if (data && data.length > 0) {
       const file = data[0];
       setAppFileName(file.name);
-      const { data: urlData } = supabase.storage.from("app-downloads").getPublicUrl(file.name);
-      setAppDownloadUrl(urlData?.publicUrl || null);
+      const { data: urlData } = await supabase.storage.from("app-downloads").createSignedUrl(file.name, 3600);
+      setAppDownloadUrl(urlData?.signedUrl || null);
     } else {
       setAppFileName(null);
       setAppDownloadUrl(null);
