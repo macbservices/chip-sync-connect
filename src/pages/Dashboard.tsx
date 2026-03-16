@@ -30,6 +30,7 @@ import {
   Wallet,
   ArrowUpRight,
   Link2,
+  Download,
 } from "lucide-react";
 
 type Location = {
