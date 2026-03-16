@@ -276,7 +276,45 @@ const Admin = () => {
     if (tab === "report" && salesReport.length === 0) fetchSalesReport();
     if (tab === "withdrawals") fetchWithdrawals();
     if (tab === "affiliates") fetchAffiliates();
+    if (tab === "app") fetchAppFile();
   }, [tab]);
+
+  const fetchAppFile = async () => {
+    const { data } = await supabase.storage.from("app-downloads").list("", { limit: 1, sortBy: { column: "created_at", order: "desc" } });
+    if (data && data.length > 0) {
+      const file = data[0];
+      setAppFileName(file.name);
+      const { data: urlData } = supabase.storage.from("app-downloads").getPublicUrl(file.name);
+      setAppDownloadUrl(urlData?.publicUrl || null);
+    } else {
+      setAppFileName(null);
+      setAppDownloadUrl(null);
+    }
+  };
+
+  const uploadAppFile = async () => {
+    if (!appFile) { toast.error("Selecione um arquivo"); return; }
+    setAppUploading(true);
+    // Delete existing files first
+    const { data: existingFiles } = await supabase.storage.from("app-downloads").list("");
+    if (existingFiles && existingFiles.length > 0) {
+      await supabase.storage.from("app-downloads").remove(existingFiles.map(f => f.name));
+    }
+    const { error } = await supabase.storage.from("app-downloads").upload(appFile.name, appFile, { upsert: true });
+    if (error) { toast.error("Erro ao fazer upload: " + error.message); setAppUploading(false); return; }
+    toast.success("Aplicativo enviado com sucesso!");
+    setAppFile(null);
+    setAppUploading(false);
+    fetchAppFile();
+  };
+
+  const deleteAppFile = async () => {
+    if (!appFileName) return;
+    await supabase.storage.from("app-downloads").remove([appFileName]);
+    toast.success("Arquivo removido");
+    setAppFileName(null);
+    setAppDownloadUrl(null);
+  };
 
   const fetchAffiliates = async () => {
     setAffiliatesLoading(true);
