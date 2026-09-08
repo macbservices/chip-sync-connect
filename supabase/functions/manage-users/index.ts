@@ -242,11 +242,9 @@ Deno.serve(async (req) => {
 
     if (action === "reset_password") {
       const { user_id, new_password } = body;
-      if (!user_id || !new_password || new_password.length < 6) {
-        return new Response(
-          JSON.stringify({ error: "ID e nova senha (min 6 chars) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || typeof new_password !== "string" ||
+          new_password.length < 8 || new_password.length > 72) {
+        return badRequest("ID e nova senha (8 a 72 caracteres) obrigatórios");
       }
 
       const { error: resetError } = await adminClient.auth.admin.updateUserById(user_id, {
