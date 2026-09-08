@@ -170,11 +170,9 @@ Deno.serve(async (req) => {
 
     if (action === "add_balance") {
       const { user_id, amount_cents } = body;
-      if (!user_id || typeof amount_cents !== "number" || amount_cents <= 0) {
-        return new Response(
-          JSON.stringify({ error: "ID e valor (positivo) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || !Number.isInteger(amount_cents) || amount_cents <= 0 ||
+          amount_cents > MAX_AMOUNT_CENTS) {
+        return badRequest("ID e valor (inteiro positivo, até R$ 100.000,00) obrigatórios");
       }
 
       const { data: profile, error: profError } = await adminClient
