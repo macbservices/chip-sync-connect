@@ -140,11 +140,8 @@ Deno.serve(async (req) => {
 
     if (action === "delete") {
       const { user_id } = body;
-      if (!user_id || user_id === callerId) {
-        return new Response(
-          JSON.stringify({ error: "ID inválido ou não pode deletar a si mesmo" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || user_id === callerId) {
+        return badRequest("ID inválido ou não pode deletar a si mesmo");
       }
 
       const { error: deleteError } =
