@@ -6,6 +6,18 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const MAX_AMOUNT_CENTS = 10_000_000; // R$ 100.000,00
+const isUuid = (v: unknown) =>
+  typeof v === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+const badRequest = (message: string) =>
+  new Response(JSON.stringify({ error: message }), {
+    status: 400,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -89,12 +101,17 @@ Deno.serve(async (req) => {
 
     if (action === "create") {
       const { email, password, full_name, role } = body;
-      if (!email || !password || password.length < 6) {
-        return new Response(
-          JSON.stringify({ error: "Email e senha (min 6 chars) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (typeof email !== "string" || !EMAIL_RE.test(email.trim()) || email.length > 255) {
+        return badRequest("Email inválido");
       }
+      if (typeof password !== "string" || password.length < 8 || password.length > 72) {
+        return badRequest("Senha deve ter entre 8 e 72 caracteres");
+      }
+      if (full_name !== undefined && full_name !== null &&
+          (typeof full_name !== "string" || full_name.length > 120)) {
+        return badRequest("Nome inválido (máx. 120 caracteres)");
+      }
+
 
       const validRoles = ["admin", "collaborator", "customer"];
       const assignRole = validRoles.includes(role) ? role : "customer";
@@ -123,11 +140,8 @@ Deno.serve(async (req) => {
 
     if (action === "delete") {
       const { user_id } = body;
-      if (!user_id || user_id === callerId) {
-        return new Response(
-          JSON.stringify({ error: "ID inválido ou não pode deletar a si mesmo" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || user_id === callerId) {
+        return badRequest("ID inválido ou não pode deletar a si mesmo");
       }
 
       const { error: deleteError } =
@@ -142,11 +156,8 @@ Deno.serve(async (req) => {
     if (action === "update_role") {
       const { user_id, role } = body;
       const validRoles = ["admin", "collaborator", "customer"];
-      if (!user_id || !validRoles.includes(role)) {
-        return new Response(
-          JSON.stringify({ error: "Dados inválidos" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || !validRoles.includes(role)) {
+        return badRequest("Dados inválidos");
       }
 
       await adminClient.from("user_roles").delete().eq("user_id", user_id);
@@ -159,11 +170,9 @@ Deno.serve(async (req) => {
 
     if (action === "add_balance") {
       const { user_id, amount_cents } = body;
-      if (!user_id || typeof amount_cents !== "number" || amount_cents <= 0) {
-        return new Response(
-          JSON.stringify({ error: "ID e valor (positivo) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || !Number.isInteger(amount_cents) || amount_cents <= 0 ||
+          amount_cents > MAX_AMOUNT_CENTS) {
+        return badRequest("ID e valor (inteiro positivo, até R$ 100.000,00) obrigatórios");
       }
 
       const { data: profile, error: profError } = await adminClient
@@ -193,11 +202,9 @@ Deno.serve(async (req) => {
 
     if (action === "deduct_balance") {
       const { user_id, amount_cents } = body;
-      if (!user_id || typeof amount_cents !== "number" || amount_cents <= 0) {
-        return new Response(
-          JSON.stringify({ error: "ID e valor (positivo) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || !Number.isInteger(amount_cents) || amount_cents <= 0 ||
+          amount_cents > MAX_AMOUNT_CENTS) {
+        return badRequest("ID e valor (inteiro positivo, até R$ 100.000,00) obrigatórios");
       }
 
       const { data: profile, error: profError } = await adminClient
@@ -235,11 +242,9 @@ Deno.serve(async (req) => {
 
     if (action === "reset_password") {
       const { user_id, new_password } = body;
-      if (!user_id || !new_password || new_password.length < 6) {
-        return new Response(
-          JSON.stringify({ error: "ID e nova senha (min 6 chars) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || typeof new_password !== "string" ||
+          new_password.length < 8 || new_password.length > 72) {
+        return badRequest("ID e nova senha (8 a 72 caracteres) obrigatórios");
       }
 
       const { error: resetError } = await adminClient.auth.admin.updateUserById(user_id, {
@@ -256,10 +261,11 @@ Deno.serve(async (req) => {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err) {
+    console.error("manage-users error:", err);
+    return new Response(
+      JSON.stringify({ error: "Erro interno. Tente novamente." }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });

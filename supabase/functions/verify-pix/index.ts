@@ -45,7 +45,10 @@ Deno.serve(async (req) => {
     }
 
     const { recharge_id } = await req.json();
-    if (!recharge_id) {
+    const isUuid = (v: unknown) =>
+      typeof v === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    if (!isUuid(recharge_id)) {
       return new Response(JSON.stringify({ error: "recharge_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -301,11 +304,11 @@ Extraia o valor encontrado no comprovante.`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("verify-pix error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Erro interno na verificação. Tente novamente." }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });
