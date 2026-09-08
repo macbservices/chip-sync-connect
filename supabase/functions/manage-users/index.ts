@@ -156,11 +156,8 @@ Deno.serve(async (req) => {
     if (action === "update_role") {
       const { user_id, role } = body;
       const validRoles = ["admin", "collaborator", "customer"];
-      if (!user_id || !validRoles.includes(role)) {
-        return new Response(
-          JSON.stringify({ error: "Dados inválidos" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!isUuid(user_id) || !validRoles.includes(role)) {
+        return badRequest("Dados inválidos");
       }
 
       await adminClient.from("user_roles").delete().eq("user_id", user_id);
