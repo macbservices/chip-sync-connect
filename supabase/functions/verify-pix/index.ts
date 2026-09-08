@@ -45,7 +45,10 @@ Deno.serve(async (req) => {
     }
 
     const { recharge_id } = await req.json();
-    if (!recharge_id) {
+    const isUuid = (v: unknown) =>
+      typeof v === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    if (!isUuid(recharge_id)) {
       return new Response(JSON.stringify({ error: "recharge_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
