@@ -101,12 +101,17 @@ Deno.serve(async (req) => {
 
     if (action === "create") {
       const { email, password, full_name, role } = body;
-      if (!email || !password || password.length < 6) {
-        return new Response(
-          JSON.stringify({ error: "Email e senha (min 6 chars) obrigatórios" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (typeof email !== "string" || !EMAIL_RE.test(email.trim()) || email.length > 255) {
+        return badRequest("Email inválido");
       }
+      if (typeof password !== "string" || password.length < 8 || password.length > 72) {
+        return badRequest("Senha deve ter entre 8 e 72 caracteres");
+      }
+      if (full_name !== undefined && full_name !== null &&
+          (typeof full_name !== "string" || full_name.length > 120)) {
+        return badRequest("Nome inválido (máx. 120 caracteres)");
+      }
+
 
       const validRoles = ["admin", "collaborator", "customer"];
       const assignRole = validRoles.includes(role) ? role : "customer";
