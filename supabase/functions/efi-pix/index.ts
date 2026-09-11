@@ -62,13 +62,42 @@ async function getEfiToken(
   return data.access_token;
 }
 
+// Read Efí credentials from the active payment_gateway_settings row (set via
+// the Admin panel), falling back field-by-field to the EFI_* environment
+// variables so existing deployments keep working until an admin configures
+// them through the UI.
+async function getEfiCredentials(
+  serviceClient: ReturnType<typeof createClient>
+): Promise<{ clientId?: string; clientSecret?: string; certificate?: string; pixKey?: string } | null> {
+  const { data: gatewayRow } = await serviceClient
+    .from("payment_gateway_settings")
+    .select("gateway, is_active, credentials")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (gatewayRow && gatewayRow.gateway !== "efi") {
+    // A different (not-yet-implemented) gateway is active — don't silently fall
+    // back to Efí, since that would charge through the wrong provider's config.
+    return null;
+  }
+
+  const creds = (gatewayRow?.credentials as Record<string, string>) || {};
+  return {
+    clientId: creds.client_id || Deno.env.get("EFI_CLIENT_ID") || undefined,
+    clientSecret: creds.client_secret || Deno.env.get("EFI_CLIENT_SECRET") || undefined,
+    certificate: creds.certificate || Deno.env.get("EFI_CERTIFICATE") || undefined,
+    pixKey: creds.pix_key || Deno.env.get("EFI_PIX_KEY") || "",
+  };
+}
+
 // Create immediate PIX charge
 async function createPixCharge(
   token: string,
   cert: string,
   key: string,
   amountBRL: string,
-  description: string
+  description: string,
+  pixKey: string
 ): Promise<any> {
   const httpClient = Deno.createHttpClient({
     certChain: cert,
@@ -84,7 +113,7 @@ async function createPixCharge(
     body: JSON.stringify({
       calendario: { expiracao: 3600 },
       valor: { original: amountBRL },
-      chave: Deno.env.get("EFI_PIX_KEY") || "",
+      chave: pixKey,
       infoAdicionais: [
         { nome: "Plataforma", valor: "MAC-CHIP" },
       ],
@@ -167,9 +196,12 @@ Deno.serve(async (req) => {
 
     const { action, amount_cents, recharge_id } = await req.json();
 
-    const clientId = Deno.env.get("EFI_CLIENT_ID");
-    const clientSecret = Deno.env.get("EFI_CLIENT_SECRET");
-    const certificate = Deno.env.get("EFI_CERTIFICATE");
+    const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const efiCredentials = await getEfiCredentials(serviceClient);
+    const clientId = efiCredentials?.clientId;
+    const clientSecret = efiCredentials?.clientSecret;
+    const certificate = efiCredentials?.certificate;
+    const pixKey = efiCredentials?.pixKey || "";
 
     if (!clientId || !clientSecret || !certificate) {
       return new Response(JSON.stringify({ error: "Efí not configured" }), {
@@ -194,7 +226,7 @@ Deno.serve(async (req) => {
       const token = await getEfiToken(clientId, clientSecret, cert, key);
 
       // Create charge
-      const charge = await createPixCharge(token, cert, key, amountBRL, "Recarga MAC-CHIP");
+      const charge = await createPixCharge(token, cert, key, amountBRL, "Recarga MAC-CHIP", pixKey);
 
       // Get QR code
       let qrcode = null;
@@ -203,8 +235,6 @@ Deno.serve(async (req) => {
       }
 
       // Create recharge request in DB
-      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
       const { data: recharge, error: rechargeError } = await serviceClient
         .from("recharge_requests")
         .insert({
@@ -238,8 +268,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
       const { data: recharge } = await serviceClient
         .from("recharge_requests")

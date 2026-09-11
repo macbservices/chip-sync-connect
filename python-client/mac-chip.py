@@ -251,7 +251,9 @@ def ler_sms(porta_serial, phone_number):
                     "message": msg_body,
                     "received_at": parsed_received_at,
                 })
-                print(f"  📩 SMS de {sender or 'desconhecido'}: {msg_body[:50]}...")
+                # Não exibir o conteúdo do SMS (pode conter códigos de verificação
+                # ou dados pessoais) no console local — apenas confirmar a captura.
+                print(f"  📩 SMS recebido de {sender or 'desconhecido'} ({len(msg_body)} caractere(s))")
 
             i = max(j, i + 1)
 
@@ -509,7 +511,7 @@ def thread_pending_sms(api_key):
 
 def main():
     print("=" * 50)
-    print("   Mac Chip - Cliente Local v3.0")
+    print("   Mac Chip - Cliente Local v3.1")
     print("=" * 50)
 
     api_key = obter_api_key()
@@ -560,6 +562,11 @@ def main():
         except KeyboardInterrupt:
             print("\n\n👋 Encerrando...")
             break
+        except Exception as e:
+            # Nunca deixar um erro inesperado (porta removida, driver instável,
+            # etc.) derrubar o daemon: loga e tenta de novo no próximo ciclo.
+            print(f"⚠️  Erro inesperado no ciclo de sincronização: {e}")
+            time.sleep(INTERVALO_SYNC)
 
 
 if __name__ == "__main__":

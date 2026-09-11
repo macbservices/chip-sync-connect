@@ -17,6 +17,13 @@ dist-ssr
 .env.*
 !.env.example
 
+# Python client build artifacts (the .exe is distributed via the Admin panel, not git)
+python-client/__pycache__/
+python-client/build/
+python-client/build_venv/
+python-client/*.spec
+python-client/*.ico
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

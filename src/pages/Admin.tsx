@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy, Wifi
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy, Wifi, CreditCard
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
@@ -80,14 +80,34 @@ type UserEntry = {
   created_at: string;
 };
 
+type PaymentGateway = {
+  gateway: string;
+  label: string;
+  is_active: boolean;
+  configured_fields: {
+    client_id: boolean;
+    client_secret: boolean;
+    certificate: boolean;
+    pix_key: boolean;
+  };
+  updated_at: string;
+};
+
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates" | "app">("orders");
+  const [tab, setTab] = useState<"orders" | "services" | "recharges" | "users" | "report" | "withdrawals" | "affiliates" | "app" | "payment">("orders");
   const [appFile, setAppFile] = useState<File | null>(null);
   const [appUploading, setAppUploading] = useState(false);
   const [appDownloadUrl, setAppDownloadUrl] = useState<string | null>(null);
   const [appFileName, setAppFileName] = useState<string | null>(null);
+  const [gateways, setGateways] = useState<PaymentGateway[]>([]);
+  const [gatewaysLoading, setGatewaysLoading] = useState(false);
+  const [gwClientId, setGwClientId] = useState("");
+  const [gwClientSecret, setGwClientSecret] = useState("");
+  const [gwCertificate, setGwCertificate] = useState("");
+  const [gwPixKey, setGwPixKey] = useState("");
+  const [gwSaving, setGwSaving] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -277,6 +297,7 @@ const Admin = () => {
     if (tab === "withdrawals") fetchWithdrawals();
     if (tab === "affiliates") fetchAffiliates();
     if (tab === "app") fetchAppFile();
+    if (tab === "payment") fetchGateways();
   }, [tab]);
 
   const fetchAppFile = async () => {
@@ -314,6 +335,44 @@ const Admin = () => {
     toast.success("Arquivo removido");
     setAppFileName(null);
     setAppDownloadUrl(null);
+  };
+
+  const fetchGateways = async () => {
+    setGatewaysLoading(true);
+    const { data, error } = await supabase.rpc("admin_list_payment_gateways");
+    if (!error) setGateways((data as unknown as PaymentGateway[]) || []);
+    setGatewaysLoading(false);
+  };
+
+  const saveGatewayCredentials = async (gateway: string) => {
+    const credentials: Record<string, string> = {};
+    if (gwClientId.trim()) credentials.client_id = gwClientId.trim();
+    if (gwClientSecret.trim()) credentials.client_secret = gwClientSecret.trim();
+    if (gwCertificate.trim()) credentials.certificate = gwCertificate.trim();
+    if (gwPixKey.trim()) credentials.pix_key = gwPixKey.trim();
+
+    if (Object.keys(credentials).length === 0) {
+      toast.error("Preencha ao menos um campo para atualizar");
+      return;
+    }
+
+    setGwSaving(true);
+    const { error } = await supabase.rpc("admin_set_payment_gateway_credentials", {
+      _gateway: gateway,
+      _credentials: credentials,
+    });
+    setGwSaving(false);
+    if (error) { toast.error("Erro ao salvar credenciais: " + error.message); return; }
+    toast.success("Credenciais atualizadas!");
+    setGwClientId(""); setGwClientSecret(""); setGwCertificate(""); setGwPixKey("");
+    fetchGateways();
+  };
+
+  const activateGateway = async (gateway: string) => {
+    const { error } = await supabase.rpc("admin_set_active_payment_gateway", { _gateway: gateway });
+    if (error) { toast.error("Erro ao ativar gateway: " + error.message); return; }
+    toast.success(`Gateway ativado: ${gateway}`);
+    fetchGateways();
   };
 
   const fetchAffiliates = async () => {
@@ -862,6 +921,10 @@ const Admin = () => {
             <Button variant={tab === "app" ? "default" : "ghost"} size="sm" onClick={() => setTab("app")}>
               <Smartphone className="mr-1.5 h-4 w-4" />
               <span className="hidden sm:inline">App</span>
+            </Button>
+            <Button variant={tab === "payment" ? "default" : "ghost"} size="sm" onClick={() => setTab("payment")}>
+              <CreditCard className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Pagamento</span>
             </Button>
             <NotificationBell />
             <DarkModeToggle />
@@ -1652,6 +1715,103 @@ const Admin = () => {
                   {appUploading ? "Enviando..." : "Fazer Upload"}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {tab === "payment" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" /> Gateway de Pagamento
+              </CardTitle>
+              <CardDescription>
+                Escolha o gateway ativo e configure suas credenciais. Campos deixados em branco mantêm o valor já salvo — nenhuma credencial é reexibida por aqui depois de salva.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {gatewaysLoading ? (
+                <p className="text-sm text-muted-foreground">Carregando...</p>
+              ) : gateways.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum gateway configurado.</p>
+              ) : (
+                gateways.map((g) => (
+                  <div key={g.gateway} className="rounded-lg border p-4 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{g.label}</span>
+                        <Badge variant={g.is_active ? "default" : "outline"}>
+                          {g.is_active ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </div>
+                      {!g.is_active && (
+                        <Button size="sm" variant="outline" onClick={() => activateGateway(g.gateway)}>
+                          Ativar este gateway
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>{g.configured_fields.client_id ? "✅" : "⬜"} Client ID</span>
+                      <span>{g.configured_fields.client_secret ? "✅" : "⬜"} Client Secret</span>
+                      <span>{g.configured_fields.certificate ? "✅" : "⬜"} Certificado</span>
+                      <span>{g.configured_fields.pix_key ? "✅" : "⬜"} Chave PIX</span>
+                      <span>· Configurado no banco = tem prioridade; campo vazio usa a variável de ambiente da função.</span>
+                    </div>
+
+                    {g.gateway === "efi" && (
+                      <div className="grid gap-3 pt-3 border-t sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label>Client ID</Label>
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="Deixe em branco para manter o atual"
+                            value={gwClientId}
+                            onChange={(e) => setGwClientId(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Client Secret</Label>
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="Deixe em branco para manter o atual"
+                            value={gwClientSecret}
+                            onChange={(e) => setGwClientSecret(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <Label>Certificado (PEM, cert + chave privada)</Label>
+                          <Textarea
+                            rows={4}
+                            className="font-mono text-xs"
+                            placeholder="Deixe em branco para manter o atual"
+                            value={gwCertificate}
+                            onChange={(e) => setGwCertificate(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Chave PIX</Label>
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="Deixe em branco para manter o atual"
+                            value={gwPixKey}
+                            onChange={(e) => setGwPixKey(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button onClick={() => saveGatewayCredentials(g.gateway)} disabled={gwSaving} className="w-full sm:w-auto">
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            {gwSaving ? "Salvando..." : "Salvar credenciais"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         )}
