@@ -662,25 +662,7 @@ export type Database = {
         Args: { _order_id: string }
         Returns: undefined
       }
-      admin_list_payment_gateways: {
-        Args: never
-        Returns: {
-          gateway: string
-          label: string
-          is_active: boolean
-          configured_fields: Json
-          updated_at: string
-        }[]
-      }
       admin_reset_all_chip_activations: { Args: never; Returns: undefined }
-      admin_set_active_payment_gateway: {
-        Args: { _gateway: string }
-        Returns: undefined
-      }
-      admin_set_payment_gateway_credentials: {
-        Args: { _gateway: string; _credentials: Json }
-        Returns: undefined
-      }
       affiliate_withdraw: { Args: { _amount_cents: number }; Returns: string }
       approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
       auto_cancel_stale_orders: { Args: never; Returns: number }
