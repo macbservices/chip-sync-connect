@@ -80,16 +80,18 @@ type UserEntry = {
   created_at: string;
 };
 
+type GatewayCredentialField = {
+  key: string;
+  label: string;
+  type: "text" | "password" | "textarea";
+};
+
 type PaymentGateway = {
   gateway: string;
   label: string;
   is_active: boolean;
-  configured_fields: {
-    client_id: boolean;
-    client_secret: boolean;
-    certificate: boolean;
-    pix_key: boolean;
-  };
+  credential_schema: GatewayCredentialField[];
+  configured_fields: Record<string, boolean>;
   updated_at: string;
 };
 
@@ -103,11 +105,10 @@ const Admin = () => {
   const [appFileName, setAppFileName] = useState<string | null>(null);
   const [gateways, setGateways] = useState<PaymentGateway[]>([]);
   const [gatewaysLoading, setGatewaysLoading] = useState(false);
-  const [gwClientId, setGwClientId] = useState("");
-  const [gwClientSecret, setGwClientSecret] = useState("");
-  const [gwCertificate, setGwCertificate] = useState("");
-  const [gwPixKey, setGwPixKey] = useState("");
-  const [gwSaving, setGwSaving] = useState(false);
+  // Keyed by gateway id -> { field key -> typed value }. Only holds values
+  // currently being edited; nothing here is ever pre-filled from the server.
+  const [gwForms, setGwForms] = useState<Record<string, Record<string, string>>>({});
+  const [gwSaving, setGwSaving] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
@@ -344,27 +345,31 @@ const Admin = () => {
     setGatewaysLoading(false);
   };
 
+  const setGwField = (gateway: string, field: string, value: string) => {
+    setGwForms((prev) => ({ ...prev, [gateway]: { ...prev[gateway], [field]: value } }));
+  };
+
   const saveGatewayCredentials = async (gateway: string) => {
+    const form = gwForms[gateway] || {};
     const credentials: Record<string, string> = {};
-    if (gwClientId.trim()) credentials.client_id = gwClientId.trim();
-    if (gwClientSecret.trim()) credentials.client_secret = gwClientSecret.trim();
-    if (gwCertificate.trim()) credentials.certificate = gwCertificate.trim();
-    if (gwPixKey.trim()) credentials.pix_key = gwPixKey.trim();
+    for (const [key, value] of Object.entries(form)) {
+      if (value.trim()) credentials[key] = value.trim();
+    }
 
     if (Object.keys(credentials).length === 0) {
       toast.error("Preencha ao menos um campo para atualizar");
       return;
     }
 
-    setGwSaving(true);
+    setGwSaving(gateway);
     const { error } = await supabase.rpc("admin_set_payment_gateway_credentials", {
       _gateway: gateway,
       _credentials: credentials,
     });
-    setGwSaving(false);
+    setGwSaving(null);
     if (error) { toast.error("Erro ao salvar credenciais: " + error.message); return; }
     toast.success("Credenciais atualizadas!");
-    setGwClientId(""); setGwClientSecret(""); setGwCertificate(""); setGwPixKey("");
+    setGwForms((prev) => ({ ...prev, [gateway]: {} }));
     fetchGateways();
   };
 
@@ -1752,59 +1757,46 @@ const Admin = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>{g.configured_fields.client_id ? "✅" : "⬜"} Client ID</span>
-                      <span>{g.configured_fields.client_secret ? "✅" : "⬜"} Client Secret</span>
-                      <span>{g.configured_fields.certificate ? "✅" : "⬜"} Certificado</span>
-                      <span>{g.configured_fields.pix_key ? "✅" : "⬜"} Chave PIX</span>
-                      <span>· Configurado no banco = tem prioridade; campo vazio usa a variável de ambiente da função.</span>
+                      {g.credential_schema.map((f) => (
+                        <span key={f.key}>{g.configured_fields[f.key] ? "✅" : "⬜"} {f.label}</span>
+                      ))}
+                      {g.gateway === "efi" && (
+                        <span>· Campo vazio no banco usa a variável de ambiente da função.</span>
+                      )}
                     </div>
 
-                    {g.gateway === "efi" && (
+                    {g.credential_schema.length > 0 && (
                       <div className="grid gap-3 pt-3 border-t sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <Label>Client ID</Label>
-                          <Input
-                            type="password"
-                            autoComplete="off"
-                            placeholder="Deixe em branco para manter o atual"
-                            value={gwClientId}
-                            onChange={(e) => setGwClientId(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Client Secret</Label>
-                          <Input
-                            type="password"
-                            autoComplete="off"
-                            placeholder="Deixe em branco para manter o atual"
-                            value={gwClientSecret}
-                            onChange={(e) => setGwClientSecret(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5 sm:col-span-2">
-                          <Label>Certificado (PEM, cert + chave privada)</Label>
-                          <Textarea
-                            rows={4}
-                            className="font-mono text-xs"
-                            placeholder="Deixe em branco para manter o atual"
-                            value={gwCertificate}
-                            onChange={(e) => setGwCertificate(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Chave PIX</Label>
-                          <Input
-                            type="password"
-                            autoComplete="off"
-                            placeholder="Deixe em branco para manter o atual"
-                            value={gwPixKey}
-                            onChange={(e) => setGwPixKey(e.target.value)}
-                          />
-                        </div>
+                        {g.credential_schema.map((f) => (
+                          <div key={f.key} className={`space-y-1.5 ${f.type === "textarea" ? "sm:col-span-2" : ""}`}>
+                            <Label>{f.label}</Label>
+                            {f.type === "textarea" ? (
+                              <Textarea
+                                rows={4}
+                                className="font-mono text-xs"
+                                placeholder="Deixe em branco para manter o atual"
+                                value={gwForms[g.gateway]?.[f.key] || ""}
+                                onChange={(e) => setGwField(g.gateway, f.key, e.target.value)}
+                              />
+                            ) : (
+                              <Input
+                                type={f.type === "password" ? "password" : "text"}
+                                autoComplete="off"
+                                placeholder="Deixe em branco para manter o atual"
+                                value={gwForms[g.gateway]?.[f.key] || ""}
+                                onChange={(e) => setGwField(g.gateway, f.key, e.target.value)}
+                              />
+                            )}
+                          </div>
+                        ))}
                         <div className="flex items-end">
-                          <Button onClick={() => saveGatewayCredentials(g.gateway)} disabled={gwSaving} className="w-full sm:w-auto">
+                          <Button
+                            onClick={() => saveGatewayCredentials(g.gateway)}
+                            disabled={gwSaving === g.gateway}
+                            className="w-full sm:w-auto"
+                          >
                             <KeyRound className="mr-2 h-4 w-4" />
-                            {gwSaving ? "Salvando..." : "Salvar credenciais"}
+                            {gwSaving === g.gateway ? "Salvando..." : "Salvar credenciais"}
                           </Button>
                         </div>
                       </div>

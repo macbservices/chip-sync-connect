@@ -668,6 +668,7 @@ export type Database = {
           gateway: string
           label: string
           is_active: boolean
+          credential_schema: Json
           configured_fields: Json
           updated_at: string
         }[]
