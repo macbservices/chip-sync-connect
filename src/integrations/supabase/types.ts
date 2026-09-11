@@ -357,6 +357,36 @@ export type Database = {
           },
         ]
       }
+      payment_gateway_settings: {
+        Row: {
+          created_at: string
+          credentials: Json
+          gateway: string
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials?: Json
+          gateway: string
+          id?: string
+          is_active?: boolean
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json
+          gateway?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           balance_cents: number
@@ -662,7 +692,25 @@ export type Database = {
         Args: { _order_id: string }
         Returns: undefined
       }
+      admin_list_payment_gateways: {
+        Args: never
+        Returns: {
+          configured_fields: Json
+          gateway: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }[]
+      }
       admin_reset_all_chip_activations: { Args: never; Returns: undefined }
+      admin_set_active_payment_gateway: {
+        Args: { _gateway: string }
+        Returns: undefined
+      }
+      admin_set_payment_gateway_credentials: {
+        Args: { _credentials: Json; _gateway: string }
+        Returns: undefined
+      }
       affiliate_withdraw: { Args: { _amount_cents: number }; Returns: string }
       approve_recharge: { Args: { _recharge_id: string }; Returns: undefined }
       auto_cancel_stale_orders: { Args: never; Returns: number }
