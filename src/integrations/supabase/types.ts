@@ -360,6 +360,7 @@ export type Database = {
       payment_gateway_settings: {
         Row: {
           created_at: string
+          credential_schema: Json
           credentials: Json
           gateway: string
           id: string
@@ -369,6 +370,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          credential_schema?: Json
           credentials?: Json
           gateway: string
           id?: string
@@ -378,6 +380,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          credential_schema?: Json
           credentials?: Json
           gateway?: string
           id?: string
@@ -430,6 +433,7 @@ export type Database = {
           admin_notes: string | null
           amount_cents: number
           created_at: string
+          external_reference: string | null
           id: string
           pix_proof_url: string | null
           status: string
@@ -440,6 +444,7 @@ export type Database = {
           admin_notes?: string | null
           amount_cents: number
           created_at?: string
+          external_reference?: string | null
           id?: string
           pix_proof_url?: string | null
           status?: string
@@ -450,6 +455,7 @@ export type Database = {
           admin_notes?: string | null
           amount_cents?: number
           created_at?: string
+          external_reference?: string | null
           id?: string
           pix_proof_url?: string | null
           status?: string
@@ -696,6 +702,7 @@ export type Database = {
         Args: never
         Returns: {
           configured_fields: Json
+          credential_schema: Json
           gateway: string
           is_active: boolean
           label: string
