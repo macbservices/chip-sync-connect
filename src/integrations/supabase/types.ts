@@ -433,6 +433,7 @@ export type Database = {
           admin_notes: string | null
           amount_cents: number
           created_at: string
+          external_reference: string | null
           id: string
           pix_proof_url: string | null
           status: string
@@ -443,6 +444,7 @@ export type Database = {
           admin_notes?: string | null
           amount_cents: number
           created_at?: string
+          external_reference?: string | null
           id?: string
           pix_proof_url?: string | null
           status?: string
@@ -453,6 +455,7 @@ export type Database = {
           admin_notes?: string | null
           amount_cents?: number
           created_at?: string
+          external_reference?: string | null
           id?: string
           pix_proof_url?: string | null
           status?: string
