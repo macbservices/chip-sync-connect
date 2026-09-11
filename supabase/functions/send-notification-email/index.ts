@@ -6,6 +6,18 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// Escape user-controlled values before interpolating them into HTML email bodies.
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -22,6 +34,38 @@ Deno.serve(async (req) => {
       throw new Error("ADMIN_EMAIL is not configured");
     }
 
+    // Require a caller identity: either a logged-in user (the normal client
+    // flow, e.g. Support.tsx submitting a ticket) or the project's own
+    // service role key (used by trusted server-side/database triggers).
+    // This function used to accept unauthenticated requests, letting anyone
+    // who found the URL send arbitrary emails "from" this app.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.slice(7);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isServiceRole = token === serviceRoleKey;
+
+    if (!isServiceRole) {
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: userError } = await callerClient.auth.getUser();
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { type, data } = await req.json();
 
     let subject = "";
@@ -30,15 +74,16 @@ Deno.serve(async (req) => {
 
     switch (type) {
       case "new_ticket": {
-        subject = `🎫 Novo ticket de suporte: ${data.subject}`;
+        const safeSubject = escapeHtml(data?.subject).slice(0, 500);
+        const safeMessage = escapeHtml(data?.message).slice(0, 5000);
+        subject = `🎫 Novo ticket de suporte: ${safeSubject}`;
         html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #1a1a2e;">Novo Ticket de Suporte</h2>
             <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 16px 0;">
-              <p><strong>Assunto:</strong> ${data.subject}</p>
+              <p><strong>Assunto:</strong> ${safeSubject}</p>
               <p><strong>Mensagem:</strong></p>
-              <p style="white-space: pre-wrap;">${data.message}</p>
-              ${data.screenshot_url ? `<p><strong>Screenshot:</strong> <a href="${data.screenshot_url}">Ver anexo</a></p>` : ""}
+              <p style="white-space: pre-wrap;">${safeMessage}</p>
             </div>
             <p style="color: #666;">Acesse o painel admin para responder.</p>
           </div>
@@ -47,19 +92,32 @@ Deno.serve(async (req) => {
       }
 
       case "chip_exhausted": {
-        subject = `⚠️ Chip esgotado: ${data.phone_number}`;
+        // Only a trusted server-side caller (service role) may trigger this
+        // type, since it lets the caller choose the recipient address.
+        if (!isServiceRole) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const safePhone = escapeHtml(data?.phone_number).slice(0, 30);
+        const safeServiceType = escapeHtml(data?.service_type).slice(0, 50);
+        subject = `⚠️ Chip esgotado: ${safePhone}`;
         html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #e63946;">Chip Esgotado</h2>
             <div style="background: #fff3f3; padding: 20px; border-radius: 8px; margin: 16px 0;">
-              <p><strong>Chip:</strong> ${data.phone_number}</p>
-              <p><strong>Serviço:</strong> ${data.service_type}</p>
+              <p><strong>Chip:</strong> ${safePhone}</p>
+              <p><strong>Serviço:</strong> ${safeServiceType}</p>
               <p>O chip atingiu o limite de ativações e precisa ser substituído.</p>
             </div>
           </div>
         `;
-        // Send to collaborator email if provided, otherwise admin
-        to = data.collaborator_email || ADMIN_EMAIL;
+        // Send to collaborator email if provided and well-formed, otherwise admin
+        const collaboratorEmail = typeof data?.collaborator_email === "string"
+          ? data.collaborator_email.trim()
+          : "";
+        to = collaboratorEmail && EMAIL_RE.test(collaboratorEmail) ? collaboratorEmail : ADMIN_EMAIL;
         break;
       }
 
