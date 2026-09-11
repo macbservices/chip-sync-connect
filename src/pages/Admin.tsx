@@ -11,10 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Plus, Check, X, Package, DollarSign,
-  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy, Wifi, CreditCard
+  Wallet, Pencil, Trash2, RefreshCw, LogOut, AlertTriangle, Users, BanknoteIcon, RotateCcw, KeyRound, BarChart3, TrendingUp, ArrowDownToLine, Upload, Smartphone, Link2, Copy, Wifi, CreditCard, BookOpen, ChevronDown
 } from "lucide-react";
 import macChipLogo from "@/assets/mac-chip-logo.png";
 import NotificationBell from "@/components/NotificationBell";
@@ -93,6 +94,80 @@ type PaymentGateway = {
   credential_schema: GatewayCredentialField[];
   configured_fields: Record<string, boolean>;
   updated_at: string;
+};
+
+type GatewayGuide = {
+  steps: string[];
+  /** Whether this app's payment-webhook function actually processes callbacks for this gateway yet. */
+  webhookImplemented: boolean;
+};
+
+const GATEWAY_GUIDES: Record<string, GatewayGuide> = {
+  efi: {
+    steps: [
+      "Acesse sua conta em gerencianet.com.br (Efí Bank) e vá em API.",
+      "Crie uma Aplicação (ou use uma existente) e anote o Client ID e o Client Secret gerados.",
+      "Em \"Meus Certificados\", gere um certificado de produção e exporte-o em formato .p12.",
+      "Converta o .p12 para PEM (certificado + chave privada) — cole o conteúdo completo do PEM no campo \"Certificado\" abaixo.",
+      "Confirme a Chave PIX cadastrada na sua conta Efí e cole no campo \"Chave PIX\".",
+    ],
+    webhookImplemented: false,
+  },
+  mercadopago: {
+    steps: [
+      "No painel de desenvolvedores do Mercado Pago, acesse \"Suas integrações\".",
+      "Crie uma Aplicação (ou selecione uma existente).",
+      "Copie o \"Access Token\" de produção e cole no campo \"Access Token\" abaixo.",
+      "Copie a \"Public Key\" e cole no campo correspondente.",
+      "Em Notificações → Webhooks, cadastre a URL de webhook exibida abaixo e marque o evento \"Pagamentos\".",
+      "Copie a \"Assinatura secreta\" gerada para esse webhook e cole no campo \"Webhook Secret\" — é o que confirma que a notificação realmente veio do Mercado Pago.",
+    ],
+    webhookImplemented: true,
+  },
+  asaas: {
+    steps: [
+      "No menu lateral do Asaas, acesse Configurações → Integrações.",
+      "Copie sua \"Chave de API\" (use a de Produção para cobrar de verdade, ou a de Sandbox para testar).",
+      "Cole a chave no campo \"API Key\" abaixo e informe \"sandbox\" ou \"production\" no campo \"Ambiente\".",
+      "Ainda em Integrações, cadastre um Webhook de cobranças com a URL exibida abaixo.",
+      "Defina um token de autenticação para esse webhook e cole no campo \"Token do Webhook\" — o Asaas reenvia esse mesmo valor em todo callback.",
+    ],
+    webhookImplemented: true,
+  },
+  stripe: {
+    steps: [
+      "No Painel de Desenvolvedores da Stripe, acesse Chaves de API.",
+      "Copie a \"Publishable key\" e a \"Secret key\" e cole nos campos correspondentes abaixo.",
+      "Em Desenvolvedores → Webhooks, adicione um endpoint usando a URL exibida abaixo.",
+      "Copie o \"Signing secret\" gerado para esse endpoint e cole no campo \"Webhook Signing Secret\".",
+    ],
+    webhookImplemented: false,
+  },
+  pagbank: {
+    steps: [
+      "No painel do PagBank, acesse Vendas → Integrações.",
+      "Gere um Token de API de integração.",
+      "Cole o token no campo \"Token de Integração\" e informe o e-mail da conta PagBank no campo correspondente.",
+    ],
+    webhookImplemented: false,
+  },
+  picpay: {
+    steps: [
+      "Acesse o Painel Lojista do PicPay Empresas → Integrações.",
+      "Copie o \"x-picpay-token\" e cole no campo \"Token PicPay\" abaixo.",
+      "O \"Seller Token\" vem nos callbacks de pagamento do PicPay — cole-o no campo correspondente assim que estiver disponível.",
+    ],
+    webhookImplemented: false,
+  },
+  pix_manual: {
+    steps: [
+      "Informe a Chave PIX que os clientes devem usar para pagar (CPF, CNPJ, e-mail, telefone ou chave aleatória).",
+      "Informe o Tipo da chave exatamente como cadastrado no seu banco.",
+      "Preencha o Nome do titular e a Cidade do titular — esses dados aparecem no QR Code exibido ao cliente.",
+      "Não há confirmação automática: confira manualmente cada comprovante enviado pelo cliente (aba Recargas) antes de aprovar.",
+    ],
+    webhookImplemented: false,
+  },
 };
 
 const Admin = () => {
@@ -378,6 +453,14 @@ const Admin = () => {
     if (error) { toast.error("Erro ao ativar gateway: " + error.message); return; }
     toast.success(`Gateway ativado: ${gateway}`);
     fetchGateways();
+  };
+
+  const webhookUrlFor = (gateway: string) =>
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/payment-webhook?gateway=${gateway}`;
+
+  const copyWebhookUrl = (gateway: string) => {
+    navigator.clipboard.writeText(webhookUrlFor(gateway));
+    toast.success("URL do webhook copiada!");
   };
 
   const fetchAffiliates = async () => {
@@ -1764,6 +1847,43 @@ const Admin = () => {
                         <span>· Campo vazio no banco usa a variável de ambiente da função.</span>
                       )}
                     </div>
+
+                    {GATEWAY_GUIDES[g.gateway] && (
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="w-full justify-between px-3 text-muted-foreground hover:text-foreground [&[data-state=open]>svg]:rotate-180">
+                            <span className="flex items-center gap-2">
+                              <BookOpen className="h-4 w-4" />
+                              Como configurar e obter credenciais do {g.label}
+                            </span>
+                            <ChevronDown className="h-4 w-4 transition-transform" />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-3 rounded-lg border bg-muted/40 p-4 mt-2">
+                          <ol className="list-decimal space-y-2 pl-4 text-sm">
+                            {GATEWAY_GUIDES[g.gateway].steps.map((step, i) => (
+                              <li key={i}>{step}</li>
+                            ))}
+                          </ol>
+
+                          {GATEWAY_GUIDES[g.gateway].webhookImplemented ? (
+                            <div className="space-y-1.5 pt-1">
+                              <Label className="text-xs">URL do Webhook (cole no painel do provedor)</Label>
+                              <div className="flex gap-2">
+                                <Input readOnly value={webhookUrlFor(g.gateway)} className="font-mono text-xs" />
+                                <Button variant="outline" size="icon" className="shrink-0" onClick={() => copyWebhookUrl(g.gateway)}>
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground pt-1">
+                              ⚠️ Este gateway ainda não tem uma função de webhook automática neste sistema — confirme os pagamentos usando o botão de verificação no checkout.
+                            </p>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
 
                     {g.credential_schema.length > 0 && (
                       <div className="grid gap-3 pt-3 border-t sm:grid-cols-2">
