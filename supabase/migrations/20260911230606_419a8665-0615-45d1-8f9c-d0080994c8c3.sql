@@ -1,10 +1,3 @@
--- Dynamic payment gateway configuration.
---
--- The table itself has RLS enabled with NO policies at all: nobody reaches it
--- directly through PostgREST (not even admins). All access goes through the
--- SECURITY DEFINER functions below (which check has_role(...,'admin') themselves)
--- or through an edge function's service-role client — the same trusted pattern
--- already used for profiles/orders/manage-users in this project.
 CREATE TABLE public.payment_gateway_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   gateway text NOT NULL UNIQUE,
@@ -15,23 +8,18 @@ CREATE TABLE public.payment_gateway_settings (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+GRANT ALL ON public.payment_gateway_settings TO service_role;
+
 ALTER TABLE public.payment_gateway_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE TRIGGER update_payment_gateway_settings_updated_at
 BEFORE UPDATE ON public.payment_gateway_settings
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
--- Seed the gateway already in production (Efí/PIX) as the active default with
--- empty credentials. efi-pix falls back to its existing EFI_* environment
--- variables whenever a field is empty here, so nothing breaks until an admin
--- actually fills in credentials through the new panel.
 INSERT INTO public.payment_gateway_settings (gateway, label, is_active, credentials)
 VALUES ('efi', 'Efí (PIX)', true, '{}'::jsonb)
 ON CONFLICT (gateway) DO NOTHING;
 
--- Admin-only: list gateways with credentials redacted to booleans (never the
--- actual secret values) so the panel can show "configured" without ever
--- reading a secret back out to the browser.
 CREATE OR REPLACE FUNCTION public.admin_list_payment_gateways()
 RETURNS TABLE(
   gateway text,
@@ -66,10 +54,6 @@ BEGIN
 END;
 $$;
 
--- Admin-only: merge new credential values into a gateway's stored credentials.
--- Only keys present in _credentials are touched, so the panel can send just
--- the fields the admin actually typed and leave the rest untouched (blank
--- fields in the UI mean "keep current value").
 CREATE OR REPLACE FUNCTION public.admin_set_payment_gateway_credentials(_gateway text, _credentials jsonb)
 RETURNS void
 LANGUAGE plpgsql
@@ -98,7 +82,6 @@ BEGIN
 END;
 $$;
 
--- Admin-only: activate exactly one gateway at a time.
 CREATE OR REPLACE FUNCTION public.admin_set_active_payment_gateway(_gateway text)
 RETURNS void
 LANGUAGE plpgsql
