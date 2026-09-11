@@ -357,6 +357,36 @@ export type Database = {
           },
         ]
       }
+      payment_gateway_settings: {
+        Row: {
+          created_at: string
+          credentials: Json
+          gateway: string
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials?: Json
+          gateway: string
+          id?: string
+          is_active?: boolean
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json
+          gateway?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           balance_cents: number
@@ -665,10 +695,10 @@ export type Database = {
       admin_list_payment_gateways: {
         Args: never
         Returns: {
-          gateway: string
-          label: string
-          is_active: boolean
           configured_fields: Json
+          gateway: string
+          is_active: boolean
+          label: string
           updated_at: string
         }[]
       }
@@ -678,7 +708,7 @@ export type Database = {
         Returns: undefined
       }
       admin_set_payment_gateway_credentials: {
-        Args: { _gateway: string; _credentials: Json }
+        Args: { _credentials: Json; _gateway: string }
         Returns: undefined
       }
       affiliate_withdraw: { Args: { _amount_cents: number }; Returns: string }
