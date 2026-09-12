@@ -138,26 +138,30 @@ const GATEWAY_GUIDES: Record<string, GatewayGuide> = {
     steps: [
       "No Painel de Desenvolvedores da Stripe, acesse Chaves de API.",
       "Copie a \"Publishable key\" e a \"Secret key\" e cole nos campos correspondentes abaixo.",
-      "Em Desenvolvedores → Webhooks, adicione um endpoint usando a URL exibida abaixo.",
+      "Em Desenvolvedores → Webhooks, clique em \"Adicionar endpoint\" e cole a URL exibida abaixo.",
+      "Selecione o evento \"payment_intent.succeeded\".",
       "Copie o \"Signing secret\" gerado para esse endpoint e cole no campo \"Webhook Signing Secret\".",
     ],
-    webhookImplemented: false,
+    webhookImplemented: true,
   },
   pagbank: {
     steps: [
       "No painel do PagBank, acesse Vendas → Integrações.",
       "Gere um Token de API de integração.",
       "Cole o token no campo \"Token de Integração\" e informe o e-mail da conta PagBank no campo correspondente.",
+      "Em Configurações de API → URL de Notificação, cole a URL exibida abaixo.",
     ],
-    webhookImplemented: false,
+    webhookImplemented: true,
   },
   picpay: {
     steps: [
       "Acesse o Painel Lojista do PicPay Empresas → Integrações.",
       "Copie o \"x-picpay-token\" e cole no campo \"Token PicPay\" abaixo.",
       "O \"Seller Token\" vem nos callbacks de pagamento do PicPay — cole-o no campo correspondente assim que estiver disponível.",
+      "Ainda em Integrações, cole a URL exibida abaixo no campo \"URL de Notificação de Status\".",
+      "Atenção: a PicPay exige CPF/CNPJ do comprador para criar a cobrança — este app ainda não coleta esse dado, então esse gateway não funciona de ponta a ponta até isso ser implementado.",
     ],
-    webhookImplemented: false,
+    webhookImplemented: true,
   },
   pix_manual: {
     steps: [

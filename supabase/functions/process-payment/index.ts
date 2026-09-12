@@ -3,6 +3,9 @@ import { getActiveGateway } from "../_shared/payment-gateways.ts";
 import { createChargeMercadoPago, checkPaymentMercadoPago } from "../_shared/gateway-mercadopago.ts";
 import { createChargeAsaas, checkPaymentAsaas } from "../_shared/gateway-asaas.ts";
 import { createChargePixManual, checkPaymentPixManual } from "../_shared/gateway-pix-manual.ts";
+import { createChargeStripe, checkPaymentStripe } from "../_shared/gateway-stripe.ts";
+import { createChargePagBank, checkPaymentPagBank } from "../_shared/gateway-pagbank.ts";
+import { createChargePicPay, checkPaymentPicPay } from "../_shared/gateway-picpay.ts";
 
 // Unified payment router: looks up whichever gateway is marked active in
 // payment_gateway_settings and dispatches to that provider's implementation.
@@ -89,6 +92,12 @@ Deno.serve(async (req) => {
           return json(await createChargeAsaas(serviceClient, activeGateway.credentials, user, amount_cents));
         case "pix_manual":
           return json(await createChargePixManual(serviceClient, activeGateway.credentials, user, amount_cents));
+        case "stripe":
+          return json(await createChargeStripe(serviceClient, activeGateway.credentials, user, amount_cents));
+        case "pagbank":
+          return json(await createChargePagBank(serviceClient, activeGateway.credentials, user, amount_cents));
+        case "picpay":
+          return json(await createChargePicPay(serviceClient, activeGateway.credentials, user, amount_cents));
         default:
           return json({ error: `Gateway "${activeGateway.label}" ainda não implementado` }, 501);
       }
@@ -106,6 +115,12 @@ Deno.serve(async (req) => {
           return json(await checkPaymentAsaas(serviceClient, activeGateway.credentials, user, recharge_id));
         case "pix_manual":
           return json(await checkPaymentPixManual(serviceClient, user, recharge_id));
+        case "stripe":
+          return json(await checkPaymentStripe(serviceClient, activeGateway.credentials, user, recharge_id));
+        case "pagbank":
+          return json(await checkPaymentPagBank(serviceClient, activeGateway.credentials, user, recharge_id));
+        case "picpay":
+          return json(await checkPaymentPicPay(serviceClient, activeGateway.credentials, user, recharge_id));
         default:
           return json({ error: `Gateway "${activeGateway.label}" ainda não implementado` }, 501);
       }
