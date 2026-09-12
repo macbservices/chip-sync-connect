@@ -26,7 +26,7 @@ const Index = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
@@ -49,7 +49,7 @@ const Index = () => {
         <section className="flex flex-col items-center justify-center px-4 text-center py-24 sm:py-32 space-y-8">
           <div className="space-y-4 max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-sm text-muted-foreground shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
               Verificação SMS instantânea
             </div>
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1]">

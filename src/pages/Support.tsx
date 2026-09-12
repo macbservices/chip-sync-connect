@@ -120,7 +120,7 @@ const Support = () => {
       case "in_progress":
         return <Badge className="bg-primary gap-1"><Loader2 className="h-3 w-3" /> Em andamento</Badge>;
       case "resolved":
-        return <Badge className="bg-accent text-accent-foreground gap-1"><CheckCircle2 className="h-3 w-3" /> Resolvido</Badge>;
+        return <Badge className="bg-success text-success-foreground gap-1"><CheckCircle2 className="h-3 w-3" /> Resolvido</Badge>;
       case "closed":
         return <Badge variant="outline" className="gap-1"><XCircle className="h-3 w-3" /> Fechado</Badge>;
       default:
@@ -130,7 +130,7 @@ const Support = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-16 items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/store")}>
             <ArrowLeft className="h-5 w-5" />
@@ -201,11 +201,11 @@ const Support = () => {
                   <Label>Print do problema (obrigatório)</Label>
                   <label className="block cursor-pointer">
                     <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      screenshot ? "border-accent bg-accent/10" : "border-muted-foreground/30 hover:border-primary/50"
+                      screenshot ? "border-success bg-success/10" : "border-muted-foreground/30 hover:border-primary/50"
                     }`}>
                       {screenshot ? (
                         <div className="space-y-1">
-                          <CheckCircle2 className="mx-auto h-6 w-6 text-accent" />
+                          <CheckCircle2 className="mx-auto h-6 w-6 text-success" />
                           <p className="text-sm font-medium">{screenshot.name}</p>
                           <p className="text-xs text-muted-foreground">Clique para trocar</p>
                         </div>

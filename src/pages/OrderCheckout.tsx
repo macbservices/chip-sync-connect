@@ -115,7 +115,7 @@ const OrderCheckout = () => {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-card">
+      <header className="border-b border-border/40 bg-card">
         <div className="container flex h-16 items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/store")}>
             <ArrowLeft className="h-5 w-5" />

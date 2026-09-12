@@ -7,7 +7,7 @@ const Cookies = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-14 items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />

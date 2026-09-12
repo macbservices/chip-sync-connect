@@ -257,7 +257,7 @@ const Store = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
@@ -350,7 +350,7 @@ const Store = () => {
                 {services
                   .filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map((service) => (
-                  <Card key={service.id} className="flex flex-col hover:shadow-md transition-shadow border-border/60">
+                  <Card key={service.id} className="flex flex-col hover:border-primary/40 transition-colors border-border/60">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <Badge variant={service.type === "verification" ? "default" : "secondary"} className="text-xs">
@@ -566,8 +566,8 @@ const Store = () => {
           </div>
 
           {activeSmsOrder?.status === "completed" ? (
-            <div className="rounded-lg border-2 border-accent/30 bg-accent/10 px-4 py-3 text-center">
-              <p className="text-sm font-semibold text-accent-foreground">
+            <div className="rounded-lg border-2 border-success/30 bg-success/10 px-4 py-3 text-center">
+              <p className="text-sm font-semibold text-success">
                 ✅ SMS recebido — Pedido concluído!
               </p>
               <p className="text-xs text-muted-foreground mt-1">

@@ -484,10 +484,10 @@ const Dashboard = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "online": return <Badge className="bg-accent text-accent-foreground">Online</Badge>;
+      case "online": return <Badge className="bg-success text-success-foreground">Online</Badge>;
       case "offline": return <Badge variant="secondary">Offline</Badge>;
       case "error": return <Badge variant="destructive">Erro</Badge>;
-      case "active": return <Badge className="bg-accent text-accent-foreground">Ativo</Badge>;
+      case "active": return <Badge className="bg-success text-success-foreground">Ativo</Badge>;
       case "exhausted": return (
         <Badge variant="destructive" className="flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" /> Esgotado
@@ -523,7 +523,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
@@ -599,8 +599,8 @@ const Dashboard = () => {
               </Card>
               <Card>
                 <CardContent className="flex items-center gap-4 p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
-                    <Wifi className="h-6 w-6 text-accent" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
+                    <Wifi className="h-6 w-6 text-success" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Modems Online</p>
@@ -692,7 +692,7 @@ const Dashboard = () => {
                         <div className="flex items-center gap-3">
                           <div className={`h-2.5 w-2.5 rounded-full ${
                             loc.last_seen_at && Date.now() - new Date(loc.last_seen_at).getTime() < 300000
-                              ? "bg-accent animate-pulse"
+                              ? "bg-success animate-pulse"
                               : "bg-muted-foreground"
                           }`} />
                           <div>
@@ -872,15 +872,15 @@ const Dashboard = () => {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-accent/20">
+              <Card className="border-success/20">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                      <BarChart3 className="h-5 w-5 text-accent" />
+                    <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center">
+                      <BarChart3 className="h-5 w-5 text-success" />
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Sua comissão (40%)</p>
-                      <p className="text-xl font-bold text-accent">{formatPrice(totalCommission)}</p>
+                      <p className="text-xl font-bold text-success">{formatPrice(totalCommission)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -926,7 +926,7 @@ const Dashboard = () => {
                         <TableHead>Localização</TableHead>
                         <TableHead className="text-right">Pedidos</TableHead>
                         <TableHead className="text-right">Receita total</TableHead>
-                        <TableHead className="text-right text-accent">Sua comissão (40%)</TableHead>
+                        <TableHead className="text-right text-success">Sua comissão (40%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -939,7 +939,7 @@ const Dashboard = () => {
                           <TableCell className="text-sm text-muted-foreground">{sale.location_name}</TableCell>
                           <TableCell className="text-right font-semibold">{sale.total_orders}</TableCell>
                           <TableCell className="text-right font-semibold">{formatPrice(sale.total_revenue_cents)}</TableCell>
-                          <TableCell className="text-right font-bold text-accent">{formatPrice(sale.commission_cents)}</TableCell>
+                          <TableCell className="text-right font-bold text-success">{formatPrice(sale.commission_cents)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

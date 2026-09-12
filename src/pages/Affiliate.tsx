@@ -175,8 +175,8 @@ const Affiliate = () => {
             </div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
-              <Users className="h-5 w-5 text-accent" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-500/10">
+              <Users className="h-5 w-5 text-violet-500" />
             </div>
             <div>
               <p className="text-2xl font-bold">{referredCount}</p>
@@ -184,8 +184,8 @@ const Affiliate = () => {
             </div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
-              <TrendingUp className="h-5 w-5 text-accent" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
+              <TrendingUp className="h-5 w-5 text-success" />
             </div>
             <div>
               <p className="text-2xl font-bold">{formatPrice(totalEarned)}</p>

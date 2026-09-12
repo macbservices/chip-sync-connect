@@ -959,7 +959,7 @@ const Admin = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={macChipLogo} alt="Mac Chip" className="h-9 w-9 rounded-lg object-contain" />
@@ -1032,8 +1032,8 @@ const Admin = () => {
         {/* Chip Stats Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Card className="p-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
-              <Wifi className="h-5 w-5 text-green-500" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
+              <Wifi className="h-5 w-5 text-success" />
             </div>
             <div>
               <p className="text-2xl font-bold">{chipStats.totalOnline}</p>
@@ -1041,8 +1041,8 @@ const Admin = () => {
             </div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
-              <Smartphone className="h-5 w-5 text-accent" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-500/10">
+              <Smartphone className="h-5 w-5 text-violet-500" />
             </div>
             <div>
               <p className="text-2xl font-bold">{chipStats.totalActive}</p>
@@ -1127,7 +1127,7 @@ const Admin = () => {
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => toggleService(svc.id, svc.is_active)} title={svc.is_active ? "Desativar" : "Ativar"}>
-                              {svc.is_active ? <X className="h-4 w-4 text-muted-foreground" /> : <Check className="h-4 w-4 text-accent" />}
+                              {svc.is_active ? <X className="h-4 w-4 text-muted-foreground" /> : <Check className="h-4 w-4 text-success" />}
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => deleteService(svc.id)} title="Excluir">
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -1204,7 +1204,7 @@ const Admin = () => {
                                     setOrderDialogOpen(true);
                                   }}
                                 >
-                                  <Check className="h-4 w-4 text-accent" />
+                                  <Check className="h-4 w-4 text-success" />
                                 </Button>
                                 <Button variant="ghost" size="icon" title="Cancelar e estornar" onClick={() => cancelOrder(order)}>
                                   <X className="h-4 w-4 text-destructive" />
@@ -1296,7 +1296,7 @@ const Admin = () => {
                             {r.status === "pending" && (
                               <>
                                 <Button variant="ghost" size="icon" title="Aprovar e creditar" onClick={() => approveRecharge(r)}>
-                                  <Check className="h-4 w-4 text-accent" />
+                                  <Check className="h-4 w-4 text-success" />
                                 </Button>
                                 <Button variant="ghost" size="icon" title="Rejeitar" onClick={() => rejectRecharge(r)}>
                                   <X className="h-4 w-4 text-destructive" />
@@ -1635,7 +1635,7 @@ const Admin = () => {
                             {w.status === "pending" && (
                               <>
                                 <Button variant="ghost" size="icon" title="Aprovar" onClick={() => approveWithdrawal(w)}>
-                                  <Check className="h-4 w-4 text-accent" />
+                                  <Check className="h-4 w-4 text-success" />
                                 </Button>
                                 <Button variant="ghost" size="icon" title="Rejeitar" onClick={() => rejectWithdrawal(w)}>
                                   <X className="h-4 w-4 text-destructive" />

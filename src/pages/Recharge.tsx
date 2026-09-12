@@ -171,7 +171,7 @@ const Recharge = () => {
   if (step === "failed") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full shadow-lg">
+        <Card className="max-w-md w-full shadow-sm border-border/60">
           <CardContent className="p-10 text-center space-y-5">
             <XCircle className="mx-auto h-16 w-16 text-destructive" />
             <h2 className="text-2xl font-bold">Verificação falhou</h2>
@@ -200,9 +200,9 @@ const Recharge = () => {
   if (step === "done") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full shadow-lg">
+        <Card className="max-w-md w-full shadow-sm border-border/60">
           <CardContent className="p-10 text-center space-y-5">
-            <CheckCircle2 className="mx-auto h-16 w-16 text-accent" />
+            <CheckCircle2 className="mx-auto h-16 w-16 text-success" />
             <h2 className="text-2xl font-bold">Solicitação enviada!</h2>
             <p className="text-muted-foreground">
               Seu comprovante de {formatPrice(amountCents)} foi recebido. O saldo será liberado após a confirmação.
@@ -219,7 +219,7 @@ const Recharge = () => {
   if (step === "uploading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full shadow-lg">
+        <Card className="max-w-md w-full shadow-sm border-border/60">
           <CardContent className="p-10 text-center space-y-5">
             <Loader2 className="mx-auto h-14 w-14 animate-spin text-primary" />
             <h2 className="text-xl font-bold">Enviando comprovante...</h2>
@@ -235,7 +235,7 @@ const Recharge = () => {
 
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <header className="border-b bg-card sticky top-0 z-10">
+        <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
           <div className="container flex h-16 items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => setStep("amount")}>
               <ArrowLeft className="h-5 w-5" />
@@ -370,7 +370,7 @@ const Recharge = () => {
   // Amount screen
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b bg-card sticky top-0 z-10">
+      <header className="border-b border-border/40 bg-card/70 backdrop-blur-md sticky top-0 z-10">
         <div className="container flex h-16 items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/store")}>
             <ArrowLeft className="h-5 w-5" />
